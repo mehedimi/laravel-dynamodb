@@ -1,0 +1,29 @@
+{
+    "name": "mehedimi/laravel-dynamodb",
+    "description": "A package for Laravel to communicate DynamoDB",
+    "type": "package",
+    "license": "MIT",
+    "keywords": ["laravel-dyanamodb", "dyanamodb", "database"],
+    "homepage": "https://github.com/mehedimi/laravel-dynamodb",
+    "authors": [
+        {
+            "name": "Mehedi Hasan",
+            "email": "mehedihasansabbirmi@gmail.com"
+        }
+    ],
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mehedi\\LaravelDynamoDB\\": "src/",
+            "Mehedi\\LaravelDynamoDB\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "illuminate/support": "^8.45",
+        "illuminate/pagination": "^8.45",
+        "illuminate/database": "^8.45",
+        "aws/aws-sdk-php": "^3.183"
+    }
+}
