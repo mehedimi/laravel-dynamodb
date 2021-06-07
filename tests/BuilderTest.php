@@ -156,4 +156,103 @@ class BuilderTest extends TestCase
 
         $this->assertEquals($expected, $query);
     }
+
+    /**
+     * @test
+     */
+    public function it_can_query_using_consistent_read()
+    {
+        $query = $this->connection
+            ->from('Users')
+            ->consistentRead(true)
+            ->toArray();
+
+        $expected = [
+            'Table' => 'Users',
+            'ConsistentRead' => true
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_get_result_by_backward()
+    {
+        $query = $this->connection
+            ->from('Users')
+            ->scanFromBackward()
+            ->toArray();
+
+        $expected = [
+            'Table' => 'Users',
+            'ScanIndexForward' => false
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_limit_query_result()
+    {
+        $query = $this->connection
+            ->from('Users')
+            ->limit(10)
+            ->toArray();
+
+        $expected = [
+            'Table' => 'Users',
+            'Limit' => 10
+        ];
+
+        $this->assertEquals($expected, $query);
+
+        $query = $this->connection
+            ->from('Users')
+            ->limit(-1)
+            ->toArray();
+
+        $expected = [
+            'Table' => 'Users',
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_support_table_prefix()
+    {
+        $query = (new DynamoDBConnection([
+            'prefix' => 'Staging-'
+        ]))->from('Users')
+            ->toArray();
+
+        $expected = [
+            'Table' => 'Staging-Users',
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_process_raw_expression()
+    {
+        $query = $this->connection->query()->raw($this->connection->raw([
+            'Table' => 'Users'
+        ]))->toArray();
+
+        $expected = [
+            'Table' => 'Users',
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
 }

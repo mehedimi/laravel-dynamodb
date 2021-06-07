@@ -84,6 +84,13 @@ class Builder
     public $projectionExpression = [];
 
     /**
+     * Raw query
+     *
+     * @var RawExpression $raw
+     */
+    public $raw;
+
+    /**
      * Specifies the order for index traversal.
      *
      * @var boolean $scanIndexForward
@@ -138,7 +145,7 @@ class Builder
      */
     public function scanFromBackward(bool $type = true)
     {
-        $this->scanIndexForward = $type;
+        $this->scanIndexForward = ! $type;
 
         return $this;
     }
@@ -209,6 +216,19 @@ class Builder
         $value = $this->expression->addValue($value);
 
         $this->keyConditionExpressions[] = sprintf('begins_with(%s, %s)', $column, $value);
+        return $this;
+    }
+
+    /**
+     * Limit query result
+     *
+     * @param $count
+     * @return $this
+     */
+    public function limit($count)
+    {
+        $this->limit = $count;
+
         return $this;
     }
 
@@ -294,6 +314,19 @@ class Builder
     }
 
     /**
+     * Set the raw query
+     *
+     * @param RawExpression $query
+     * @return $this
+     */
+    public function raw(RawExpression $query)
+    {
+        $this->raw = $query;
+
+        return $this;
+    }
+
+    /**
      * Query from dynamodb
      *
      * @return \Illuminate\Support\Collection
@@ -308,6 +341,5 @@ class Builder
             )
         );
     }
-
 
 }

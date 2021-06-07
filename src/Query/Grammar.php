@@ -15,7 +15,9 @@ class Grammar extends BaseGrammar
         'keyConditionExpressions',
         'limit',
         'projectionExpression',
-        'scanIndexForward'
+        'scanIndexForward',
+        'expression',
+        'raw'
     ];
 
     /**
@@ -36,8 +38,6 @@ class Grammar extends BaseGrammar
                 $this->{$method}($builder->{$component}, $query);
             }
         }
-
-        $this->compileExpressionAttributes($builder, $query);
 
         return $query;
     }
@@ -175,17 +175,43 @@ class Grammar extends BaseGrammar
     /**
      * Compile expression names and values
      *
-     * @param Builder $builder
+     * @param Expression $expression
      * @param $query
      */
-    protected function compileExpressionAttributes(Builder $builder, &$query)
+    protected function compileExpression(Expression $expression, &$query)
     {
-        if ($builder->expression->hasNames()) {
-            $query['ExpressionAttributeNames'] = $builder->expression->getNames();
+        if ($expression->hasNames()) {
+            $query['ExpressionAttributeNames'] = $expression->getNames();
         }
 
-        if ($builder->expression->hasValues()) {
-            $query['ExpressionAttributeValues'] = $builder->expression->getValues();
+        if ($expression->hasValues()) {
+            $query['ExpressionAttributeValues'] = $expression->getValues();
+        }
+    }
+
+    /**
+     * Compile scan index forward
+     *
+     * @param $scanIndexForward
+     * @param $query
+     */
+    protected function compileScanIndexForward($scanIndexForward, &$query)
+    {
+        if ($scanIndexForward === false) {
+            $query['ScanIndexForward'] = false;
+        }
+    }
+
+    /**
+     * Compile raw expression
+     *
+     * @param RawExpression $raw
+     * @param $query
+     */
+    protected function compileRaw(RawExpression $raw, &$query)
+    {
+        foreach ($raw->toArray() as $key => $value) {
+            $query[$key] = $value;
         }
     }
 }

@@ -21,9 +21,17 @@
         }
     },
     "require": {
-        "illuminate/support": "^8.45",
-        "illuminate/pagination": "^8.45",
-        "illuminate/database": "^8.45",
+        "php": "^7.3|^8.0",
+        "illuminate/support": "^6.0|^7.0|^8.0",
+        "illuminate/pagination": "^6.0|^7.0|^8.0",
+        "illuminate/database": "^6.0|^7.0|^8.0",
         "aws/aws-sdk-php": "^3.183"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Mehedi\\LaravelDynamoDB\\DynamoDBServiceProvider"
+            ]
+        }
     }
 }

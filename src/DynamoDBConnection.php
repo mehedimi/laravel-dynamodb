@@ -2,12 +2,15 @@
 namespace Mehedi\LaravelDynamoDB;
 
 use Aws\DynamoDb\DynamoDbClient;
+use Closure;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Traits\ForwardsCalls;
 use Mehedi\LaravelDynamoDB\Query\Builder;
 use Mehedi\LaravelDynamoDB\Query\Grammar;
 use Mehedi\LaravelDynamoDB\Query\Processor;
+use Mehedi\LaravelDynamoDB\Query\RawExpression;
 
-class DynamoDBConnection
+class DynamoDBConnection implements ConnectionInterface
 {
     use ForwardsCalls;
 
@@ -157,5 +160,164 @@ class DynamoDBConnection
     public function __call($name, $arguments)
     {
         $this->forwardCallTo($this->client, $name, $arguments);
+    }
+
+    /**
+     * Set the table name
+     *
+     * @param Closure|\Illuminate\Database\Query\Builder|string $table
+     * @param null $as
+     * @return Builder
+     */
+    public function table($table, $as = null)
+    {
+        return $this->from($table);
+    }
+
+    /**
+     * @param mixed $value
+     * @return RawExpression
+     */
+    public function raw($value)
+    {
+        return new RawExpression($value);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function selectOne($query, $bindings = [], $useReadPdo = true)
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function select($query, $bindings = [], $useReadPdo = true)
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function cursor($query, $bindings = [], $useReadPdo = true)
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function insert($query, $bindings = [])
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function update($query, $bindings = [])
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function delete($query, $bindings = [])
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function statement($query, $bindings = [])
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function affectingStatement($query, $bindings = [])
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function unprepared($query)
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function prepareBindings(array $bindings)
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function transaction(Closure $callback, $attempts = 1)
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function beginTransaction()
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function commit()
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function rollBack()
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function transactionLevel()
+    {
+        //
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function pretend(Closure $callback)
+    {
+        //
+    }
+
+    /**
+     * Get database name
+     *
+     * @return string|null
+     */
+    public function getDatabaseName()
+    {
+        return null;
     }
 }
