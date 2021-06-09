@@ -2,6 +2,8 @@
 
 namespace Mehedi\LaravelDynamoDB\Query;
 
+use Illuminate\Support\Str;
+use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 
 class Builder
@@ -19,6 +21,13 @@ class Builder
      * @var bool $consistentRead
      */
     public $consistentRead = false;
+
+    /**
+     * A condition expression to determine which items should be modified
+     *
+     * @var array $conditionExpressions
+     */
+    public $conditionExpressions = [];
 
     /**
      * The primary key of the first item that this operation will evaluate.
@@ -49,18 +58,32 @@ class Builder
     public $from;
 
     /**
-     * Query grammer
-     *
-     * @var Grammar $grammer
-     */
-    public $grammer;
-
-    /**
      * The name of an index to query.
      *
      * @var string $indexName
      */
     public $indexName;
+
+    /**
+     * Insert item
+     *
+     * @var array $item
+     */
+    public $item;
+
+    /**
+     * Is testing
+     *
+     * @var bool $isTesting
+     */
+    protected $isTesting = false;
+
+    /**
+     * Key attribute of a item
+     *
+     * @var array $key
+     */
+    public $key;
 
     /**
      * The condition that specifies the key values for items to be retrieved by the Query action.
@@ -97,12 +120,111 @@ class Builder
      */
     public $scanIndexForward;
 
+    /**
+     * Update expressions
+     *
+     * @var array[] $updates
+     */
+    public $updates = [
+        'set' => [],
+        'remove' => [],
+        'add' => [],
+        'delete' => []
+    ];
+
 
     public function __construct(DynamoDBConnection $connection)
     {
         $this->connection = $connection;
         $this->expression = new Expression();
-        $this->grammer = $connection->getDefaultQueryGrammar();
+    }
+
+    /**
+     * Add filter
+     *
+     * @param $column
+     * @param $operator
+     * @param null $value
+     * @param string $type
+     * @return $this
+     */
+    protected function addFilter($column, $operator, $value = null, $type = 'and')
+    {
+        $column = $this->expression->addName($column);
+        $value = $this->expression->addValue($value);
+
+        $this->filterExpressions[] = [sprintf('%s %s %s', $column, $operator, $value), $type];
+
+        return $this;
+    }
+
+    /**
+     * Add condition expression
+     *
+     * @param $column
+     * @param $operator
+     * @param null $value
+     * @param string $type
+     * @return $this
+     */
+    protected function addCondition($column, $operator, $value = null, $type = 'and')
+    {
+        $column = $this->expression->addName($column);
+        $value = $this->expression->addValue($value);
+
+        $this->conditionExpressions[] = [sprintf('%s %s %s', $column, $operator, $value), $type];
+
+        return $this;
+    }
+
+
+    /**
+     *  Determines the read consistency model
+     *
+     * @param bool $mode
+     * @return $this
+     */
+    public function consistentRead(bool $mode)
+    {
+        $this->consistentRead = $mode;
+
+        return $this;
+    }
+
+    /**
+     * Add condition
+     *
+     * @param $column
+     * @param $operator
+     * @param null $value
+     * @return $this
+     */
+    public function condition($column, $operator, $value = null)
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->addCondition($column, $operator, $value);
+    }
+
+    /**
+     * Delete an item
+     *
+     * @param string $returnValues
+     * @return $this|array
+     */
+    public function delete($returnValues = 'NONE')
+    {
+        if ($this->isTesting) {
+            return $this;
+        }
+
+        return $this->connection->postProcessor->processAffectedOperation(
+            $this->connection->getClient()->deleteItem(
+                $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues)
+            )
+        );
     }
 
     /**
@@ -119,48 +241,61 @@ class Builder
     }
 
     /**
-     * Select item attributes
+     * Add filter expression
      *
+     * @param $column
+     * @param $operator
+     * @param null $value
      * @return $this
      */
-    public function select()
+    public function filter($column, $operator, $value = null)
     {
-        $attributes = func_get_args();
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
 
-        foreach ($attributes as $attribute) {
-            $name = $this->expression->addName($attribute);
-            if (! in_array($name, $this->projectionExpression)) {
-                $this->projectionExpression[] = $name;
-            }
-        }
-
-        return $this;
+        return $this->addFilter($column, $operator, $value);
     }
 
     /**
-     * Scan index forward
-     *
-     * @param bool $type
-     * @return $this
-     */
-    public function scanFromBackward(bool $type = true)
-    {
-        $this->scanIndexForward = ! $type;
-
-        return $this;
-    }
-
-    /**
-     *  Determines the read consistency model
+     * Is testing
      *
      * @param bool $mode
      * @return $this
      */
-    public function consistentRead(bool $mode)
+    public function inTesting($mode = true)
     {
-        $this->consistentRead = $mode;
+        $this->isTesting = $mode;
 
         return $this;
+    }
+
+    /**
+     * Insert item
+     *
+     * @param array $item
+     * @param string $returnValues
+     * @return $this|false
+     */
+    public function insert(array $item, $returnValues = 'NONE')
+    {
+        foreach ($this->key ?? [] as $keyColumn => $keyValue) {
+            $this->condition($keyColumn, '<>', $keyValue);
+        }
+
+        return $this->putItem($item, $returnValues);
+    }
+
+    /**
+     * Insert or replace an item
+     *
+     * @param array $item
+     * @param string $returnValues
+     * @return $this|false
+     */
+    public function insertOrReplace(array $item, $returnValues = 'NONE')
+    {
+        return $this->putItem($item, $returnValues);
     }
 
     /**
@@ -200,6 +335,19 @@ class Builder
         $to = $this->expression->addValue($to);
 
         $this->keyConditionExpressions[] = sprintf('%s BETWEEN %s AND %s', $column, $from, $to);
+        return $this;
+    }
+
+    /**
+     * Set the item key
+     *
+     * @param array $key
+     * @return $this
+     */
+    public function key(array $key)
+    {
+        $this->key = $key;
+
         return $this;
     }
 
@@ -251,40 +399,68 @@ class Builder
     }
 
     /**
-     * Add filter
+     * Put item
      *
-     * @param $column
-     * @param $operator
-     * @param null $value
-     * @param string $type
+     * @param $item
+     * @param string $returnValues
+     * @return $this|array|false
+     */
+    public function putItem($item, $returnValues = 'NONE')
+    {
+        if (empty($item)) {
+            return false;
+        }
+
+        $this->item = $item;
+
+        if (!empty($this->key)) {
+            $this->item += $this->key;
+        }
+
+        if ($this->isTesting) {
+            return $this;
+        }
+
+        return $this->connection->postProcessor->processAffectedOperation(
+            $this->connection->getClient()->putItem(
+                $this->connection->queryGrammar->compileInsertQuery($this, $returnValues)
+            )
+        );
+    }
+
+    /**
+     * Select item attributes
+     *
      * @return $this
      */
-    protected function addFilter($column, $operator, $value = null, $type = 'and')
+    public function select()
     {
-        $column = $this->expression->addName($column);
-        $value = $this->expression->addValue($value);
+        $attributes = func_get_args();
 
-        $this->filterExpressions[] = [sprintf('%s %s %s', $column, $operator, $value), $type];
+        foreach ($attributes as $attribute) {
+            $name = $this->expression->addName($attribute);
+            if (! in_array($name, $this->projectionExpression)) {
+                $this->projectionExpression[] = $name;
+            }
+        }
 
         return $this;
     }
 
     /**
-     * Add filter expression
+     * Scan index forward
      *
-     * @param $column
-     * @param $operator
-     * @param null $value
+     * @param bool $type
      * @return $this
      */
-    public function filter($column, $operator, $value = null)
+    public function scanFromBackward(bool $type = true)
     {
-        [$value, $operator] = $this->prepareValueAndOperator(
-            $value, $operator, func_num_args() === 2
-        );
+        $this->scanIndexForward = ! $type;
 
-        return $this->addFilter($column, $operator, $value);
+        return $this;
     }
+
+
 
     /**
      * Add or filter expression
@@ -310,7 +486,40 @@ class Builder
      */
     public function toArray()
     {
-        return $this->grammer->compileQuery($this);
+        return $this->connection->queryGrammar->compileQuery($this);
+    }
+
+    /**
+     * Get dynamodb update query from builder
+     *
+     * @param string $returnValues
+     * @return array
+     */
+    public function toArrayForDelete($returnValues = 'NONE')
+    {
+        return $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues);
+    }
+
+    /**
+     * Get dynamodb update query from builder
+     *
+     * @param string $returnValues
+     * @return array
+     */
+    public function toArrayForUpdate($returnValues = 'NONE')
+    {
+        return $this->connection->queryGrammar->compileUpdateQuery($this, $returnValues);
+    }
+
+    /**
+     * Get dynamodb insert query from builder
+     *
+     * @param string $returnValues
+     * @return array
+     */
+    public function toArrayForInsert($returnValues = 'NONE')
+    {
+        return $this->connection->queryGrammar->compileInsertQuery($this, $returnValues);
     }
 
     /**
@@ -329,17 +538,71 @@ class Builder
     /**
      * Query from dynamodb
      *
-     * @return \Illuminate\Support\Collection
+     * @return ItemCollection
      */
     public function query()
     {
-        return collect(
-            $this->connection->processor->processItems(
-                $this->connection->getClient()->query(
-                    $this->toArray()
-                )
+        return $this->connection->postProcessor->processItems(
+            $this->connection->getClient()->query(
+                $this->toArray()
             )
         );
     }
 
+    /**
+     * Scan from table
+     *
+     * @return ItemCollection
+     */
+    public function scan()
+    {
+        return $this->connection->postProcessor->processItems(
+            $this->connection->getClient()->scan(
+                $this->toArray()
+            )
+        );
+    }
+
+    /**
+     * Perform update query
+     *
+     * @param array $item
+     * @param string $returnValues
+     * @return array|Builder
+     */
+    public function update(array $item, $returnValues = 'NONE')
+    {
+        foreach ($item as $column => $value) {
+            if (is_null($value)) {
+                $this->updates['remove'][] = $this->expression->addName($column);
+                continue;
+            }
+
+            $value = $this->expression->addValue($value);
+            if (! Str::contains($column, ':')) {
+                $this->updates['set'][] = sprintf('%s = %s', $this->expression->addName($column), $value);
+                continue;
+            }
+
+            $column = explode(':', $column);
+            switch ($column[0]) {
+                case 'add':
+                    $this->updates['add'][] = sprintf('%s %s', $this->expression->addName($column[1]), $value);
+                    break;
+                case 'delete':
+                    $this->updates['delete'][] = sprintf('%s %s', $this->expression->addName($column[1]), $value);
+                    break;
+            }
+        }
+
+        if ($this->isTesting) {
+            return $this;
+        }
+
+        return $this->connection->postProcessor->processUpdate(
+            $this->connection->getClient()->updateItem(
+                $this->toArrayForUpdate($returnValues)
+            )
+        );
+    }
 }

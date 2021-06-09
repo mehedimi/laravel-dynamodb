@@ -32,4 +32,4 @@ Add dynamodb configs to config/database.php:
     $connection->table('Users')->query();
 ```
 
-For more documentation click here
+For more documentation [click](https://github.com/mehedimi/laravel-dynamodb/wiki) here

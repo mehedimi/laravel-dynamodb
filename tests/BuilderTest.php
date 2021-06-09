@@ -24,7 +24,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users'
+            'TableName' => 'Users'
         ];
 
         $this->assertEquals($expected, $query);
@@ -41,7 +41,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'KeyConditionExpression' => '#1 = :1',
             'ExpressionAttributeNames' => [
                 '#1' => 'PK'
@@ -68,7 +68,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'KeyConditionExpression' => '#1 = :1 and begins_with(#2, :2)',
             'ExpressionAttributeNames' => [
                 '#1' => 'PK',
@@ -99,7 +99,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'KeyConditionExpression' => '#1 = :1 and #2 BETWEEN :2 AND :3',
             'ExpressionAttributeNames' => [
                 '#1' => 'PK',
@@ -134,7 +134,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'KeyConditionExpression' => '#1 = :1',
             'ExpressionAttributeNames' => [
                 '#1' => 'PK',
@@ -168,7 +168,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'ConsistentRead' => true
         ];
 
@@ -186,7 +186,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'ScanIndexForward' => false
         ];
 
@@ -204,7 +204,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
             'Limit' => 10
         ];
 
@@ -216,7 +216,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
         ];
 
         $this->assertEquals($expected, $query);
@@ -233,7 +233,7 @@ class BuilderTest extends TestCase
             ->toArray();
 
         $expected = [
-            'Table' => 'Staging-Users',
+            'TableName' => 'Staging-Users',
         ];
 
         $this->assertEquals($expected, $query);
@@ -245,14 +245,187 @@ class BuilderTest extends TestCase
     public function it_can_process_raw_expression()
     {
         $query = $this->connection->query()->raw($this->connection->raw([
-            'Table' => 'Users'
+            'TableName' => 'Users'
         ]))->toArray();
 
         $expected = [
-            'Table' => 'Users',
+            'TableName' => 'Users',
         ];
 
         $this->assertEquals($expected, $query);
     }
 
+    /**
+     * @test
+     */
+    public function it_can_update_a_item()
+    {
+        $query = $this->connection
+            ->table('Users')
+            ->key(['PK' => 'User-1'])
+            ->inTesting()
+            ->update([
+                'name' => 'Name Here'
+            ])->toArrayForUpdate();
+
+        $expected = [
+            'TableName' => 'Users',
+            'Key' => [
+                'PK' => [
+                    'S' => 'User-1'
+                ]
+            ],
+            'ExpressionAttributeNames' => [
+                '#1' => 'name'
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'S' => 'Name Here'
+                ]
+            ],
+            'UpdateExpression' => 'set #1 = :1',
+            'ReturnValues' => 'NONE'
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_remove_attribute_from_a_item()
+    {
+        $query = $this->connection->table('Users')->key(['PK' => 'User-1'])
+            ->inTesting()->update([
+                'name' => 'Name Here',
+                'age' => null
+            ])->toArrayForUpdate();
+
+        $expected = [
+            'TableName' => 'Users',
+            'Key' => [
+                'PK' => [
+                    'S' => 'User-1'
+                ]
+            ],
+            'ExpressionAttributeNames' => [
+                '#1' => 'name',
+                '#2' => 'age',
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'S' => 'Name Here'
+                ]
+            ],
+            'UpdateExpression' => 'set #1 = :1 remove #2',
+            'ReturnValues' => 'NONE'
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_add_attribute_on_a_item()
+    {
+        $query = $this->connection->table('Users')->key(['PK' => 'User-1'])
+            ->inTesting()->update([
+                'name' => 'Name Here',
+                'add:age' => 18,
+                'add:salary' => 70000,
+                'delete:meta' => 'dob'
+            ])->toArrayForUpdate();
+
+        $expected = [
+            'TableName' => 'Users',
+            'Key' => [
+                'PK' => [
+                    'S' => 'User-1'
+                ]
+            ],
+            'ExpressionAttributeNames' => [
+                '#1' => 'name',
+                '#2' => 'age',
+                '#3' => 'salary',
+                '#4' => 'meta',
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'S' => 'Name Here'
+                ],
+                ':2' => [
+                    'N' => 18
+                ],
+                ':3' => [
+                    'N' => 70000
+                ],
+                ':4' => [
+                    'S' => 'dob'
+                ]
+            ],
+            'UpdateExpression' => 'set #1 = :1 add #2 :2, #3 :3 delete #4 :4',
+            'ReturnValues' => 'NONE'
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_put_item()
+    {
+        $query = $this->connection
+            ->table('Users')
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
+            ->inTesting()->insert([
+                'name' => 'Name Here',
+                'age' => null
+            ])->toArrayForInsert();
+
+        $expected = [
+            'TableName' => 'Users',
+            'Item' => [
+                'name' => ['S' => 'Name Here'],
+                'age' => ['NULL' => true],
+                'PK' => ['S' => 'User-1'],
+                'SK' => ['S' => 'Profile']
+            ],
+            'ConditionExpression' => '#1 <> :1 and #2 <> :2',
+            'ReturnValues' => 'NONE',
+            'ExpressionAttributeNames' => [
+                '#1' => 'PK',
+                '#2' => 'SK',
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => ['S' => 'User-1'],
+                ':2' => ['S' => 'Profile'],
+            ],
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_delete_an_item()
+    {
+        $query = $this->connection
+            ->table('Users')
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
+            ->inTesting()->delete()->toArrayForDelete();
+
+        $expected = [
+            'TableName' => 'Users',
+            'ReturnValues' => 'NONE',
+            'Key' => [
+                'PK' => ['S' => 'User-1'],
+                'SK' => ['S' => 'Profile'],
+            ]
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
 }

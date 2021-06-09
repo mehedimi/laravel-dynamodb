@@ -3,14 +3,14 @@ namespace Mehedi\LaravelDynamoDB;
 
 use Aws\DynamoDb\DynamoDbClient;
 use Closure;
-use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Traits\ForwardsCalls;
 use Mehedi\LaravelDynamoDB\Query\Builder;
 use Mehedi\LaravelDynamoDB\Query\Grammar;
 use Mehedi\LaravelDynamoDB\Query\Processor;
 use Mehedi\LaravelDynamoDB\Query\RawExpression;
 
-class DynamoDBConnection implements ConnectionInterface
+class DynamoDBConnection extends Connection
 {
     use ForwardsCalls;
 
@@ -31,14 +31,14 @@ class DynamoDBConnection implements ConnectionInterface
      *
      * @var Grammar $grammar
      */
-    public $grammar;
+    public $queryGrammar;
 
     /**
      * Result processor
      *
      * @var Processor $processor
      */
-    public $processor;
+    public $postProcessor;
 
 
     public function __construct($config)
@@ -46,8 +46,10 @@ class DynamoDBConnection implements ConnectionInterface
         $this->config = $config;
         $this->client = $this->makeClient($config);
 
-        $this->useDefaultQueryGrammar();
+        $this->tablePrefix = $config['prefix'] ?? null;
+
         $this->useDefaultPostProcessor();
+        $this->useDefaultQueryGrammar();
     }
 
 
@@ -59,8 +61,6 @@ class DynamoDBConnection implements ConnectionInterface
      */
     public function makeClient($config)
     {
-        $this->tablePrefix = $config['prefix'] ?? null;
-
         return new DynamoDbClient([
             'region' => $config['region'] ?? 'us-east-1',
             'version' => $config['version'] ?? 'latest',
@@ -94,22 +94,6 @@ class DynamoDBConnection implements ConnectionInterface
     }
 
     /**
-     * Use default query grammar
-     */
-    public function useDefaultQueryGrammar()
-    {
-        $this->grammar = $this->getDefaultQueryGrammar();
-    }
-
-    /**
-     * Use default post processor
-     */
-    public function useDefaultPostProcessor()
-    {
-        $this->processor = $this->getDefaultPostProsessor();
-    }
-
-    /**
      * Get default query grammar
      *
      * @return Grammar
@@ -124,21 +108,9 @@ class DynamoDBConnection implements ConnectionInterface
      *
      * @return Processor
      */
-    public function getDefaultPostProsessor()
+    public function getDefaultPostProcessor()
     {
         return new Processor();
-    }
-
-    /**
-     * With table prefix
-     *
-     * @param Grammar $grammar
-     * @return Grammar
-     */
-    public function withTablePrefix(Grammar $grammar)
-    {
-        $grammar->setTablePrefix($this->tablePrefix);
-        return $grammar;
     }
 
     /**
@@ -181,143 +153,5 @@ class DynamoDBConnection implements ConnectionInterface
     public function raw($value)
     {
         return new RawExpression($value);
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function selectOne($query, $bindings = [], $useReadPdo = true)
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function select($query, $bindings = [], $useReadPdo = true)
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function cursor($query, $bindings = [], $useReadPdo = true)
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function insert($query, $bindings = [])
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function update($query, $bindings = [])
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function delete($query, $bindings = [])
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function statement($query, $bindings = [])
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function affectingStatement($query, $bindings = [])
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function unprepared($query)
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function prepareBindings(array $bindings)
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function transaction(Closure $callback, $attempts = 1)
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function beginTransaction()
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function commit()
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function rollBack()
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function transactionLevel()
-    {
-        //
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function pretend(Closure $callback)
-    {
-        //
-    }
-
-    /**
-     * Get database name
-     *
-     * @return string|null
-     */
-    public function getDatabaseName()
-    {
-        return null;
     }
 }
