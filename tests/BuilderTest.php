@@ -1,6 +1,7 @@
 <?php
 namespace Mehedi\LaravelDynamoDB\Tests;
 
+use Illuminate\Support\Arr;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 use PHPUnit\Framework\TestCase;
 
@@ -428,4 +429,83 @@ class BuilderTest extends TestCase
 
         $this->assertEquals($expected, $query);
     }
+
+    /**
+     * @test
+     */
+    public function it_can_increment_a_value_of_attribute()
+    {
+        $query = $this->connection
+            ->table('Users')
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
+            ->inTesting()->increment('visits')->toArrayForUpdate();
+
+        $expected = [
+            'TableName' => 'Users',
+            'ReturnValues' => 'NONE',
+            'Key' => [
+                'PK' => ['S' => 'User-1'],
+                'SK' => ['S' => 'Profile'],
+            ],
+            'ExpressionAttributeNames' => [
+                '#1' => 'visits'
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'N' => 1
+                ]
+            ],
+            'UpdateExpression' => 'set #1 = #1 + :1'
+        ];
+
+        $this->assertEquals($expected, $query);
+
+        $query = $this->connection
+            ->table('Users')
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
+            ->inTesting()->increment('add:visits', 2)->toArrayForUpdate();
+
+        $expected['UpdateExpression'] = 'add #1 :1';
+        Arr::set($expected, 'ExpressionAttributeValues.:1.N', 2);
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+     * @test
+     */
+    public function it_can_decrement_a_value_of_attribute()
+    {
+        $query = $this->connection
+            ->table('Users')
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
+            ->inTesting()
+            ->decrement('visits', 1, ['updated_at' => 'now'])
+            ->toArrayForUpdate();
+
+        $expected = [
+            'TableName' => 'Users',
+            'ReturnValues' => 'NONE',
+            'Key' => [
+                'PK' => ['S' => 'User-1'],
+                'SK' => ['S' => 'Profile'],
+            ],
+            'ExpressionAttributeNames' => [
+                '#1' => 'visits',
+                '#2' => 'updated_at'
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'N' => 1
+                ],
+                ':2' => [
+                    'S' => 'now'
+                ]
+            ],
+            'UpdateExpression' => 'set #1 = #1 - :1, #2 = :2'
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
 }

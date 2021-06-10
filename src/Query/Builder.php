@@ -3,6 +3,7 @@
 namespace Mehedi\LaravelDynamoDB\Query;
 
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 
@@ -209,6 +210,30 @@ class Builder
     }
 
     /**
+     * Decrement a column's value by a given amount.
+     *
+     * @param $column
+     * @param int $amount
+     * @param array $extra
+     * @param string $returnValues
+     * @return $this|array
+     *
+     * @throws InvalidArgumentException
+     */
+    public function decrement($column, $amount = 1, $extra = [], $returnValues = 'NONE')
+    {
+        if (! is_numeric($amount)) {
+            throw new InvalidArgumentException('Non-numeric value passed to decrement method.');
+        }
+        $column = $this->expression->addName($column);
+        $amount = $this->expression->addValue($amount);
+
+        $this->updates['set'][] = sprintf('%s = %s - %s', $column, $column, $amount);
+
+        return $this->update($extra, $returnValues);
+    }
+
+    /**
      * Delete an item
      *
      * @param string $returnValues
@@ -268,6 +293,34 @@ class Builder
         $this->isTesting = $mode;
 
         return $this;
+    }
+
+    /**
+     * Increment a column's value by a given amount.
+     *
+     * @param $column
+     * @param int $amount
+     * @param array $extra
+     * @param string $returnValues
+     * @return $this|array
+     *
+     * @throws InvalidArgumentException
+     */
+    public function increment($column, $amount = 1, $extra = [], $returnValues = 'NONE')
+    {
+        if (! is_numeric($amount)) {
+            throw new InvalidArgumentException('Non-numeric value passed to increment method.');
+        }
+
+        $amount = $this->expression->addValue($amount);
+        if (Str::startsWith($column, 'add:')) {
+            $this->updates['add'][] = sprintf('%s %s', $this->expression->addName(explode(':', $column)[1]), $amount);
+        } else {
+            $column = $this->expression->addName($column);
+            $this->updates['set'][] = sprintf('%s = %s + %s', $column, $column, $amount);
+        }
+
+        return $this->update($extra, $returnValues);
     }
 
     /**
@@ -459,8 +512,6 @@ class Builder
 
         return $this;
     }
-
-
 
     /**
      * Add or filter expression
