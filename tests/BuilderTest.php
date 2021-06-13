@@ -4,6 +4,7 @@ namespace Mehedi\LaravelDynamoDB\Tests;
 use Illuminate\Support\Arr;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 use PHPUnit\Framework\TestCase;
+use function Couchbase\defaultDecoder;
 
 class BuilderTest extends TestCase
 {

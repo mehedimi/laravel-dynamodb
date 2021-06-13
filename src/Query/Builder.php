@@ -283,12 +283,40 @@ class Builder
     }
 
     /**
+     * Get one item from database by primary key
+     *
+     * @return array|null
+     */
+    public function first(): ?array
+    {
+        $data = $this->getItem();
+
+        return array_key_exists('Item', $data) ? $data['Item'] : null;
+    }
+
+    /**
+     * Get an item from Database
+     *
+     * @return array
+     */
+    public function getItem(): array
+    {
+        return $this->connection->postProcessor->processItem(
+            $this->connection->getClient()->getItem(
+                $this->connection->queryGrammar->compileGetItem(
+                    $this
+                )
+            )
+        );
+    }
+
+    /**
      * Is testing
      *
      * @param bool $mode
      * @return $this
      */
-    public function inTesting($mode = true)
+    public function inTesting($mode = true): Builder
     {
         $this->isTesting = $mode;
 
@@ -359,7 +387,7 @@ class Builder
      * @param null $value
      * @return $this
      */
-    public function keyCondition($column, $operator, $value = null)
+    public function keyCondition($column, $operator, $value = null): Builder
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -381,7 +409,7 @@ class Builder
      * @param $to
      * @return $this
      */
-    public function keyConditionBetween($column, $from, $to)
+    public function keyConditionBetween($column, $from, $to): Builder
     {
         $column = $this->expression->addName($column);
         $from = $this->expression->addValue($from);
@@ -397,7 +425,7 @@ class Builder
      * @param array $key
      * @return $this
      */
-    public function key(array $key)
+    public function key(array $key): Builder
     {
         $this->key = $key;
 
@@ -411,7 +439,7 @@ class Builder
      * @param $value
      * @return $this
      */
-    public function keyConditionBeginsWith($column, $value)
+    public function keyConditionBeginsWith($column, $value): Builder
     {
         $column = $this->expression->addName($column);
         $value = $this->expression->addValue($value);
@@ -426,7 +454,7 @@ class Builder
      * @param $count
      * @return $this
      */
-    public function limit($count)
+    public function limit($count): Builder
     {
         $this->limit = $count;
 
@@ -441,7 +469,7 @@ class Builder
      * @param false $useDefault
      * @return array
      */
-    public function prepareValueAndOperator($value, $operator, $useDefault = false)
+    public function prepareValueAndOperator($value, $operator, $useDefault = false): array
     {
         if ($useDefault) {
             $value = $operator;
@@ -486,7 +514,7 @@ class Builder
      *
      * @return $this
      */
-    public function select()
+    public function select(): Builder
     {
         $attributes = func_get_args();
 
@@ -506,7 +534,7 @@ class Builder
      * @param bool $type
      * @return $this
      */
-    public function scanFromBackward(bool $type = true)
+    public function scanFromBackward(bool $type = true): Builder
     {
         $this->scanIndexForward = ! $type;
 
@@ -521,7 +549,7 @@ class Builder
      * @param null $value
      * @return $this
      */
-    public function orFilter($column, $operator = '=', $value = null)
+    public function orFilter($column, $operator = '=', $value = null): Builder
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -535,7 +563,7 @@ class Builder
      *
      * @return array
      */
-    public function toArray()
+    public function toArray(): array
     {
         return $this->connection->queryGrammar->compileQuery($this);
     }
@@ -546,7 +574,7 @@ class Builder
      * @param string $returnValues
      * @return array
      */
-    public function toArrayForDelete($returnValues = 'NONE')
+    public function toArrayForDelete($returnValues = 'NONE'): array
     {
         return $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues);
     }
@@ -557,7 +585,7 @@ class Builder
      * @param string $returnValues
      * @return array
      */
-    public function toArrayForUpdate($returnValues = 'NONE')
+    public function toArrayForUpdate($returnValues = 'NONE'): array
     {
         return $this->connection->queryGrammar->compileUpdateQuery($this, $returnValues);
     }
@@ -568,7 +596,7 @@ class Builder
      * @param string $returnValues
      * @return array
      */
-    public function toArrayForInsert($returnValues = 'NONE')
+    public function toArrayForInsert($returnValues = 'NONE'): array
     {
         return $this->connection->queryGrammar->compileInsertQuery($this, $returnValues);
     }
@@ -579,7 +607,7 @@ class Builder
      * @param RawExpression $query
      * @return $this
      */
-    public function raw(RawExpression $query)
+    public function raw(RawExpression $query): Builder
     {
         $this->raw = $query;
 
@@ -591,7 +619,7 @@ class Builder
      *
      * @return ItemCollection
      */
-    public function query()
+    public function query(): ItemCollection
     {
         return $this->connection->postProcessor->processItems(
             $this->connection->getClient()->query(
@@ -605,7 +633,7 @@ class Builder
      *
      * @return ItemCollection
      */
-    public function scan()
+    public function scan(): ItemCollection
     {
         return $this->connection->postProcessor->processItems(
             $this->connection->getClient()->scan(

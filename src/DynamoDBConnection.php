@@ -2,7 +2,6 @@
 namespace Mehedi\LaravelDynamoDB;
 
 use Aws\DynamoDb\DynamoDbClient;
-use Closure;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Traits\ForwardsCalls;
 use Mehedi\LaravelDynamoDB\Query\Builder;
@@ -59,7 +58,7 @@ class DynamoDBConnection extends Connection
      * @param $config
      * @return DynamoDbClient
      */
-    public function makeClient($config)
+    public function makeClient($config): DynamoDbClient
     {
         return new DynamoDbClient([
             'region' => $config['region'] ?? 'us-east-1',
@@ -77,7 +76,7 @@ class DynamoDBConnection extends Connection
      *
      * @return Builder
      */
-    public function query()
+    public function query(): Builder
     {
         return new Builder($this);
     }
@@ -88,7 +87,7 @@ class DynamoDBConnection extends Connection
      * @param $table
      * @return Builder
      */
-    public function from($table)
+    public function from($table): Builder
     {
         return $this->query()->from($table);
     }
@@ -98,7 +97,7 @@ class DynamoDBConnection extends Connection
      *
      * @return Grammar
      */
-    public function getDefaultQueryGrammar()
+    public function getDefaultQueryGrammar(): Grammar
     {
         return $this->withTablePrefix(new Grammar());
     }
@@ -108,7 +107,7 @@ class DynamoDBConnection extends Connection
      *
      * @return Processor
      */
-    public function getDefaultPostProcessor()
+    public function getDefaultPostProcessor(): Processor
     {
         return new Processor();
     }
@@ -118,7 +117,7 @@ class DynamoDBConnection extends Connection
      *
      * @return DynamoDbClient
      */
-    public function getClient()
+    public function getClient(): DynamoDbClient
     {
         return $this->client;
     }
@@ -137,11 +136,11 @@ class DynamoDBConnection extends Connection
     /**
      * Set the table name
      *
-     * @param Closure|\Illuminate\Database\Query\Builder|string $table
+     * @param string $table
      * @param null $as
      * @return Builder
      */
-    public function table($table, $as = null)
+    public function table($table, $as = null): Builder
     {
         return $this->from($table);
     }
@@ -150,7 +149,7 @@ class DynamoDBConnection extends Connection
      * @param mixed $value
      * @return RawExpression
      */
-    public function raw($value)
+    public function raw($value): RawExpression
     {
         return new RawExpression($value);
     }

@@ -65,6 +65,37 @@ class Grammar extends BaseGrammar
         'raw'
     ];
 
+    /**
+     * Get item components
+     *
+     * @var string[] $getItemComponents
+     */
+    public $getItemComponents = [
+        'key',
+        'from',
+        'expression',
+        'consistentRead',
+        'projectionExpression',
+    ];
+
+    /**
+     * Compile get item query
+     *
+     * @param Builder $builder
+     * @return array
+     */
+    public function compileGetItem(Builder $builder)
+    {
+        return $this->compile($builder, $this->getItemComponents);
+    }
+
+    /**
+     * Compile insert query
+     *
+     * @param Builder $builder
+     * @param $returnValues
+     * @return array
+     */
     public function compileInsertQuery(Builder $builder, $returnValues)
     {
         $query = $this->compile($builder, $this->insertComponents);
@@ -124,7 +155,7 @@ class Grammar extends BaseGrammar
     }
 
     /**
-     * Compile
+     * Compile components
      *
      * @param Builder $builder
      * @param array $components

@@ -26,6 +26,23 @@ class Processor
     }
 
     /**
+     * Process single item
+     *
+     * @param Result $result
+     * @return array
+     */
+    public function processItem(Result $result)
+    {
+        $data = $result->toArray();
+
+        if (array_key_exists('Item', $data)) {
+            $data['Item'] = Marshaler::unMarshalItem($data['Item']);
+        }
+
+        return $data;
+    }
+
+    /**
      * Process update response
      *
      * @param Result $result
