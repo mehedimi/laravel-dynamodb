@@ -42,6 +42,6 @@ class Marshaler
      */
     public static function unMarshalItem($item)
     {
-        return self::getInstance()->unmarshalItem($item);
+        return self::getInstance()->unmarshalItem($item, true);
     }
 }

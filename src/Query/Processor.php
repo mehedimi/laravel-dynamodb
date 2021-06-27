@@ -22,7 +22,10 @@ class Processor
             return Marshaler::unMarshalItem($item);
         }, $data['Items']);
 
-        return (new ItemCollection($data));
+        return (new ItemCollection($data['Items']))
+            ->setItemsCount($data['ScannedCount'])
+            ->setItemsCount($data['Count'])
+            ->setMetaData($data['@metadata']);
     }
 
     /**

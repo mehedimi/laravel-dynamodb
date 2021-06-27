@@ -285,22 +285,31 @@ class Builder
     /**
      * Get one item from database by primary key
      *
-     * @return array|null
+     * @param array $columns
+     * @param string $mode
+     * @return object|null
      */
-    public function first(): ?array
+    public function first(array $columns = [], $mode = 'query'): ?array
     {
-        $data = $this->getItem();
-
-        return array_key_exists('Item', $data) ? $data['Item'] : null;
+        return $this->limit(1)->{$mode}($columns);
     }
 
     /**
      * Get an item from Database
      *
+     * @param array $columns
      * @return array
      */
-    public function getItem(): array
+    public function getItem(array $columns = []): array
     {
+        if (empty($this->key)) {
+            throw new InvalidArgumentException('Please set the primary key using key() method.');
+        }
+
+        if (! empty($columns)) {
+            $this->select(...$columns);
+        }
+
         return $this->connection->postProcessor->processItem(
             $this->connection->getClient()->getItem(
                 $this->connection->queryGrammar->compileGetItem(
@@ -326,15 +335,14 @@ class Builder
     /**
      * Increment a column's value by a given amount.
      *
-     * @param $column
+     * @param string $column
      * @param int $amount
      * @param array $extra
      * @param string $returnValues
      * @return $this|array
      *
-     * @throws InvalidArgumentException
      */
-    public function increment($column, $amount = 1, $extra = [], $returnValues = 'NONE')
+    public function increment(string $column, int $amount = 1, array $extra = [], string $returnValues = 'NONE')
     {
         if (! is_numeric($amount)) {
             throw new InvalidArgumentException('Non-numeric value passed to increment method.');
@@ -358,7 +366,7 @@ class Builder
      * @param string $returnValues
      * @return $this|false
      */
-    public function insert(array $item, $returnValues = 'NONE')
+    public function insert(array $item, string $returnValues = 'NONE')
     {
         foreach ($this->key ?? [] as $keyColumn => $keyValue) {
             $this->condition($keyColumn, '<>', $keyValue);
@@ -374,7 +382,7 @@ class Builder
      * @param string $returnValues
      * @return $this|false
      */
-    public function insertOrReplace(array $item, $returnValues = 'NONE')
+    public function insertOrReplace(array $item, string $returnValues = 'NONE')
     {
         return $this->putItem($item, $returnValues);
     }
@@ -382,12 +390,12 @@ class Builder
     /**
      * Add condition expression on key
      *
-     * @param $column
-     * @param $operator
+     * @param string $column
+     * @param string $operator
      * @param null $value
      * @return $this
      */
-    public function keyCondition($column, $operator, $value = null): Builder
+    public function whereKey(string $column, string $operator, $value = null): Builder
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -404,12 +412,12 @@ class Builder
     /**
      * Add between condition on key expression
      *
-     * @param $column
-     * @param $from
-     * @param $to
+     * @param string $column
+     * @param string $from
+     * @param string $to
      * @return $this
      */
-    public function keyConditionBetween($column, $from, $to): Builder
+    public function whereKeyBetween(string $column, string $from, string $to): Builder
     {
         $column = $this->expression->addName($column);
         $from = $this->expression->addValue($from);
@@ -439,7 +447,7 @@ class Builder
      * @param $value
      * @return $this
      */
-    public function keyConditionBeginsWith($column, $value): Builder
+    public function whereKeyBeginsWith($column, $value): Builder
     {
         $column = $this->expression->addName($column);
         $value = $this->expression->addValue($value);
@@ -469,7 +477,7 @@ class Builder
      * @param false $useDefault
      * @return array
      */
-    public function prepareValueAndOperator($value, $operator, $useDefault = false): array
+    public function prepareValueAndOperator($value, $operator, bool $useDefault = false): array
     {
         if ($useDefault) {
             $value = $operator;

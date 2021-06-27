@@ -4,7 +4,6 @@ namespace Mehedi\LaravelDynamoDB\Tests;
 use Illuminate\Support\Arr;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 use PHPUnit\Framework\TestCase;
-use function Couchbase\defaultDecoder;
 
 class BuilderTest extends TestCase
 {
@@ -39,7 +38,7 @@ class BuilderTest extends TestCase
     {
         $query = $this->connection
             ->from('Users')
-            ->keyCondition('PK', 'USERS')
+            ->whereKey('PK', 'USERS')
             ->toArray();
 
         $expected = [
@@ -65,8 +64,8 @@ class BuilderTest extends TestCase
     {
         $query = $this->connection
             ->from('Users')
-            ->keyCondition('PK', 'USERS')
-            ->keyConditionBeginsWith('SK', 'Me')
+            ->whereKey('PK', 'USERS')
+            ->whereKeyBeginsWith('SK', 'Me')
             ->toArray();
 
         $expected = [
@@ -96,8 +95,8 @@ class BuilderTest extends TestCase
     {
         $query = $this->connection
             ->from('Users')
-            ->keyCondition('PK', 'USERS')
-            ->keyConditionBetween('SK', '2', '4')
+            ->whereKey('PK', 'USERS')
+            ->whereKeyBetween('SK', '2', '4')
             ->toArray();
 
         $expected = [
@@ -130,7 +129,7 @@ class BuilderTest extends TestCase
     {
         $query = $this->connection
             ->from('Users')
-            ->keyCondition('PK', 'USERS')
+            ->whereKey('PK', 'USERS')
             ->filter('is_active', true)
             ->orFilter('is_active', false)
             ->toArray();
