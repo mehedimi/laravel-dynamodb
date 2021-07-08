@@ -267,7 +267,7 @@ class BuilderTest extends TestCase
             ->inTesting()
             ->update([
                 'name' => 'Name Here'
-            ])->toArrayForUpdate();
+            ]);
 
         $expected = [
             'TableName' => 'Users',
@@ -300,7 +300,7 @@ class BuilderTest extends TestCase
             ->inTesting()->update([
                 'name' => 'Name Here',
                 'age' => null
-            ])->toArrayForUpdate();
+            ]);
 
         $expected = [
             'TableName' => 'Users',
@@ -336,7 +336,7 @@ class BuilderTest extends TestCase
                 'add:age' => 18,
                 'add:salary' => 70000,
                 'delete:meta' => 'dob'
-            ])->toArrayForUpdate();
+            ]);
 
         $expected = [
             'TableName' => 'Users',
@@ -383,7 +383,7 @@ class BuilderTest extends TestCase
             ->inTesting()->insert([
                 'name' => 'Name Here',
                 'age' => null
-            ])->toArrayForInsert();
+            ]);
 
         $expected = [
             'TableName' => 'Users',
@@ -416,7 +416,7 @@ class BuilderTest extends TestCase
         $query = $this->connection
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->delete()->toArrayForDelete();
+            ->inTesting()->delete();
 
         $expected = [
             'TableName' => 'Users',
@@ -438,7 +438,7 @@ class BuilderTest extends TestCase
         $query = $this->connection
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->increment('visits')->toArrayForUpdate();
+            ->inTesting()->increment('visits');
 
         $expected = [
             'TableName' => 'Users',
@@ -463,7 +463,7 @@ class BuilderTest extends TestCase
         $query = $this->connection
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->increment('add:visits', 2)->toArrayForUpdate();
+            ->inTesting()->increment('add:visits', 2);
 
         $expected['UpdateExpression'] = 'add #1 :1';
         Arr::set($expected, 'ExpressionAttributeValues.:1.N', 2);
@@ -480,8 +480,7 @@ class BuilderTest extends TestCase
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
             ->inTesting()
-            ->decrement('visits', 1, ['updated_at' => 'now'])
-            ->toArrayForUpdate();
+            ->decrement('visits', 1, ['updated_at' => 'now']);
 
         $expected = [
             'TableName' => 'Users',

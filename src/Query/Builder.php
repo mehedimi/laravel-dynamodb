@@ -77,7 +77,7 @@ class Builder
      *
      * @var bool $isTesting
      */
-    protected $isTesting = false;
+    public $isTesting = false;
 
     /**
      * Key attribute of a item
@@ -141,6 +141,44 @@ class Builder
     }
 
     /**
+     * Add between filter
+     *
+     * @param string $column
+     * @param $from
+     * @param $to
+     * @param string $type
+     * @return $this
+     */
+    protected function addBetweenFilter(string $column, $from, $to, string $type = 'and'): Builder
+    {
+        $column = $this->expression->addName($column);
+        $from = $this->expression->addValue($from);
+        $to = $this->expression->addValue($to);
+
+        $this->filterExpressions[] = [sprintf('%s BETWEEN %s AND %s', $column, $from, $to), $type];
+
+        return $this;
+    }
+
+    /**
+     * Add begins with filter
+     *
+     * @param string $column
+     * @param $substr
+     * @param string $type
+     * @return $this
+     */
+    protected function addBeginsWithFilter(string $column, $substr, string $type = 'and'): Builder
+    {
+        $column = $this->expression->addName($column);
+        $substr = $this->expression->addValue($substr);
+
+        $this->filterExpressions[] = [sprintf('begins_with(%s, %s)', $column, $substr), $type];
+
+        return $this;
+    }
+
+    /**
      * Add filter
      *
      * @param $column
@@ -149,7 +187,7 @@ class Builder
      * @param string $type
      * @return $this
      */
-    protected function addFilter($column, $operator, $value = null, $type = 'and')
+    protected function addFilter($column, $operator, $value = null, string $type = 'and'): Builder
     {
         $column = $this->expression->addName($column);
         $value = $this->expression->addValue($value);
@@ -168,7 +206,7 @@ class Builder
      * @param string $type
      * @return $this
      */
-    protected function addCondition($column, $operator, $value = null, $type = 'and')
+    protected function addCondition($column, $operator, $value = null, string $type = 'and'): Builder
     {
         $column = $this->expression->addName($column);
         $value = $this->expression->addValue($value);
@@ -178,6 +216,17 @@ class Builder
         return $this;
     }
 
+    /**
+     * Check key is exists to the instance
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function checkKeyExists()
+    {
+        if (empty($this->key)) {
+            throw new InvalidArgumentException('Please set the primary key using key() method.');
+        }
+    }
 
     /**
      *  Determines the read consistency model
@@ -185,7 +234,7 @@ class Builder
      * @param bool $mode
      * @return $this
      */
-    public function consistentRead(bool $mode)
+    public function consistentRead(bool $mode): Builder
     {
         $this->consistentRead = $mode;
 
@@ -200,7 +249,7 @@ class Builder
      * @param null $value
      * @return $this
      */
-    public function condition($column, $operator, $value = null)
+    public function condition($column, $operator, $value = null): Builder
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -213,18 +262,21 @@ class Builder
      * Decrement a column's value by a given amount.
      *
      * @param $column
-     * @param int $amount
+     * @param int|float $amount
      * @param array $extra
      * @param string $returnValues
-     * @return $this|array
+     * @return array
      *
      * @throws InvalidArgumentException
      */
-    public function decrement($column, $amount = 1, $extra = [], $returnValues = 'NONE')
+    public function decrement($column, $amount = 1, array $extra = [], string $returnValues = ReturnValue::NONE): array
     {
+        $this->checkKeyExists();
+
         if (! is_numeric($amount)) {
             throw new InvalidArgumentException('Non-numeric value passed to decrement method.');
         }
+
         $column = $this->expression->addName($column);
         $amount = $this->expression->addValue($amount);
 
@@ -237,28 +289,43 @@ class Builder
      * Delete an item
      *
      * @param string $returnValues
-     * @return $this|array
+     * @return array
      */
-    public function delete($returnValues = 'NONE')
+    public function delete(string $returnValues = ReturnValue::NONE): array
     {
+        $this->checkKeyExists();
+
+        $query = $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues);
+
         if ($this->isTesting) {
-            return $this;
+            return $query;
         }
 
-        return $this->connection->postProcessor->processAffectedOperation(
-            $this->connection->getClient()->deleteItem(
-                $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues)
-            )
-        );
+        $response = $this->connection->getClient()->deleteItem($query);
+
+        return $this->connection->postProcessor->processAffectedOperation($response);
+    }
+
+    /**
+     * Fetch data from dynamodb
+     *
+     * @param string $mode
+     * @return ItemCollection
+     */
+    public function fetch(string $mode): ItemCollection
+    {
+        $result = $this->connection->getClient()->{$mode}($this->toArray());
+
+        return $this->connection->postProcessor->processItems($result);
     }
 
     /**
      *  Set the table which the query is targeting.
      *
-     * @param $table
+     * @param string $table
      * @return $this
      */
-    public function from($table)
+    public function from(string $table): Builder
     {
         $this->from = $table;
 
@@ -273,7 +340,7 @@ class Builder
      * @param null $value
      * @return $this
      */
-    public function filter($column, $operator, $value = null)
+    public function filter($column, $operator, $value = null): Builder
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -283,13 +350,38 @@ class Builder
     }
 
     /**
+     * Add between filter
+     *
+     * @param $column
+     * @param $from
+     * @param $to
+     * @return $this
+     */
+    public function filterBetween($column, $from, $to): Builder
+    {
+        return $this->addBetweenFilter($column, $from, $to);
+    }
+
+    /**
+     * Add begins with filter
+     *
+     * @param $column
+     * @param $substr
+     * @return $this
+     */
+    public function filterBeginsWith($column, $substr): Builder
+    {
+        return $this->addBeginsWithFilter($column, $substr);
+    }
+
+    /**
      * Get one item from database by primary key
      *
      * @param array $columns
      * @param string $mode
      * @return object|null
      */
-    public function first(array $columns = [], $mode = 'query'): ?array
+    public function first(array $columns = [], string $mode = FetchMode::QUERY): ?array
     {
         return $this->limit(1)->{$mode}($columns);
     }
@@ -297,26 +389,21 @@ class Builder
     /**
      * Get an item from Database
      *
-     * @param array $columns
      * @return array
      */
-    public function getItem(array $columns = []): array
+    public function find(): array
     {
-        if (empty($this->key)) {
-            throw new InvalidArgumentException('Please set the primary key using key() method.');
+        $this->checkKeyExists();
+
+        $query = $this->connection->queryGrammar->compileGetItem($this);
+
+        if ($this->isTesting) {
+            return $query;
         }
 
-        if (! empty($columns)) {
-            $this->select(...$columns);
-        }
+        $result = $this->connection->getClient()->getItem($query);
 
-        return $this->connection->postProcessor->processItem(
-            $this->connection->getClient()->getItem(
-                $this->connection->queryGrammar->compileGetItem(
-                    $this
-                )
-            )
-        );
+        return $this->connection->postProcessor->processItem($result);
     }
 
     /**
@@ -325,7 +412,7 @@ class Builder
      * @param bool $mode
      * @return $this
      */
-    public function inTesting($mode = true): Builder
+    public function inTesting(bool $mode = true): Builder
     {
         $this->isTesting = $mode;
 
@@ -336,14 +423,16 @@ class Builder
      * Increment a column's value by a given amount.
      *
      * @param string $column
-     * @param int $amount
+     * @param int|float $amount
      * @param array $extra
      * @param string $returnValues
-     * @return $this|array
+     * @return array
      *
      */
-    public function increment(string $column, int $amount = 1, array $extra = [], string $returnValues = 'NONE')
+    public function increment(string $column, $amount = 1, array $extra = [], string $returnValues = ReturnValue::NONE): array
     {
+        $this->checkKeyExists();
+
         if (! is_numeric($amount)) {
             throw new InvalidArgumentException('Non-numeric value passed to increment method.');
         }
@@ -364,9 +453,9 @@ class Builder
      *
      * @param array $item
      * @param string $returnValues
-     * @return $this|false
+     * @return array|false
      */
-    public function insert(array $item, string $returnValues = 'NONE')
+    public function insert(array $item, string $returnValues = ReturnValue::NONE)
     {
         foreach ($this->key ?? [] as $keyColumn => $keyValue) {
             $this->condition($keyColumn, '<>', $keyValue);
@@ -380,9 +469,9 @@ class Builder
      *
      * @param array $item
      * @param string $returnValues
-     * @return $this|false
+     * @return array|false
      */
-    public function insertOrReplace(array $item, string $returnValues = 'NONE')
+    public function insertOrReplace(array $item, string $returnValues = ReturnValue::NONE)
     {
         return $this->putItem($item, $returnValues);
     }
@@ -428,6 +517,22 @@ class Builder
     }
 
     /**
+     * Add begins with key condition
+     *
+     * @param string $column
+     * @param string $value
+     * @return $this
+     */
+    public function whereKeyBeginsWith(string $column, string $value): Builder
+    {
+        $column = $this->expression->addName($column);
+        $value = $this->expression->addValue($value);
+
+        $this->keyConditionExpressions[] = sprintf('begins_with(%s, %s)', $column, $value);
+        return $this;
+    }
+
+    /**
      * Set the item key
      *
      * @param array $key
@@ -441,28 +546,12 @@ class Builder
     }
 
     /**
-     * Add begins with key condition
-     *
-     * @param $column
-     * @param $value
-     * @return $this
-     */
-    public function whereKeyBeginsWith($column, $value): Builder
-    {
-        $column = $this->expression->addName($column);
-        $value = $this->expression->addValue($value);
-
-        $this->keyConditionExpressions[] = sprintf('begins_with(%s, %s)', $column, $value);
-        return $this;
-    }
-
-    /**
      * Limit query result
      *
-     * @param $count
+     * @param int $count
      * @return $this
      */
-    public function limit($count): Builder
+    public function limit(int $count): Builder
     {
         $this->limit = $count;
 
@@ -492,9 +581,9 @@ class Builder
      *
      * @param $item
      * @param string $returnValues
-     * @return $this|array|false
+     * @return array|false
      */
-    public function putItem($item, $returnValues = 'NONE')
+    public function putItem($item, string $returnValues = ReturnValue::NONE)
     {
         if (empty($item)) {
             return false;
@@ -506,15 +595,15 @@ class Builder
             $this->item += $this->key;
         }
 
+        $query = $this->connection->queryGrammar->compileInsertQuery($this, $returnValues);
+
         if ($this->isTesting) {
-            return $this;
+            return $query;
         }
 
-        return $this->connection->postProcessor->processAffectedOperation(
-            $this->connection->getClient()->putItem(
-                $this->connection->queryGrammar->compileInsertQuery($this, $returnValues)
-            )
-        );
+        $response = $this->connection->getClient()->putItem($query);
+
+        return $this->connection->postProcessor->processAffectedOperation($response);
     }
 
     /**
@@ -522,10 +611,8 @@ class Builder
      *
      * @return $this
      */
-    public function select(): Builder
+    public function select(...$attributes): Builder
     {
-        $attributes = func_get_args();
-
         foreach ($attributes as $attribute) {
             $name = $this->expression->addName($attribute);
             if (! in_array($name, $this->projectionExpression)) {
@@ -553,7 +640,7 @@ class Builder
      * Add or filter expression
      *
      * @param $column
-     * @param $operator
+     * @param mixed $operator
      * @param null $value
      * @return $this
      */
@@ -567,6 +654,32 @@ class Builder
     }
 
     /**
+     * Add or between filter
+     *
+     * @param $column
+     * @param $from
+     * @param $to
+     * @return $this
+     */
+    public function orFilterBetween($column, $from, $to): Builder
+    {
+        return $this->addBetweenFilter($column, $from, $to, 'or');
+    }
+
+    /**
+     * Add or begins with filter
+     *
+     * @param $column
+     * @param $substr
+     * @return $this
+     */
+    public function orFilterBeginsWith($column, $substr): Builder
+    {
+        return $this->addBeginsWithFilter($column, $substr, 'or');
+    }
+
+
+    /**
      * Get dynamodb query from builder
      *
      * @return array
@@ -574,39 +687,6 @@ class Builder
     public function toArray(): array
     {
         return $this->connection->queryGrammar->compileQuery($this);
-    }
-
-    /**
-     * Get dynamodb update query from builder
-     *
-     * @param string $returnValues
-     * @return array
-     */
-    public function toArrayForDelete($returnValues = 'NONE'): array
-    {
-        return $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues);
-    }
-
-    /**
-     * Get dynamodb update query from builder
-     *
-     * @param string $returnValues
-     * @return array
-     */
-    public function toArrayForUpdate($returnValues = 'NONE'): array
-    {
-        return $this->connection->queryGrammar->compileUpdateQuery($this, $returnValues);
-    }
-
-    /**
-     * Get dynamodb insert query from builder
-     *
-     * @param string $returnValues
-     * @return array
-     */
-    public function toArrayForInsert($returnValues = 'NONE'): array
-    {
-        return $this->connection->queryGrammar->compileInsertQuery($this, $returnValues);
     }
 
     /**
@@ -629,11 +709,7 @@ class Builder
      */
     public function query(): ItemCollection
     {
-        return $this->connection->postProcessor->processItems(
-            $this->connection->getClient()->query(
-                $this->toArray()
-            )
-        );
+        return $this->fetch(FetchMode::QUERY);
     }
 
     /**
@@ -643,11 +719,7 @@ class Builder
      */
     public function scan(): ItemCollection
     {
-        return $this->connection->postProcessor->processItems(
-            $this->connection->getClient()->scan(
-                $this->toArray()
-            )
-        );
+        return $this->fetch(FetchMode::SCAN);
     }
 
     /**
@@ -655,10 +727,12 @@ class Builder
      *
      * @param array $item
      * @param string $returnValues
-     * @return array|Builder
+     * @return array
      */
-    public function update(array $item, $returnValues = 'NONE')
+    public function update(array $item, string $returnValues = ReturnValue::NONE): array
     {
+        $this->checkKeyExists();
+
         foreach ($item as $column => $value) {
             if (is_null($value)) {
                 $this->updates['remove'][] = $this->expression->addName($column);
@@ -682,14 +756,14 @@ class Builder
             }
         }
 
+        $query = $this->connection->queryGrammar->compileUpdateQuery($this, $returnValues);
+
         if ($this->isTesting) {
-            return $this;
+            return $query;
         }
 
-        return $this->connection->postProcessor->processUpdate(
-            $this->connection->getClient()->updateItem(
-                $this->toArrayForUpdate($returnValues)
-            )
-        );
+        $response = $this->connection->getClient()->updateItem($query);
+
+        return $this->connection->postProcessor->processUpdate($response);
     }
 }

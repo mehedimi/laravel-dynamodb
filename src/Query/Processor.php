@@ -14,7 +14,7 @@ class Processor
      * @param Result $result
      * @return ItemCollection
      */
-    public function processItems(Result $result)
+    public function processItems(Result $result): ItemCollection
     {
         $data = $result->toArray();
 
@@ -34,7 +34,7 @@ class Processor
      * @param Result $result
      * @return array
      */
-    public function processItem(Result $result)
+    public function processItem(Result $result): array
     {
         $data = $result->toArray();
 
@@ -51,7 +51,7 @@ class Processor
      * @param Result $result
      * @return array
      */
-    public function processUpdate(Result $result)
+    public function processUpdate(Result $result): array
     {
         return Marshaler::unMarshalItem($result->toArray());
     }
@@ -62,7 +62,7 @@ class Processor
      * @param Result $result
      * @return array
      */
-    public function processAffectedOperation(Result $result)
+    public function processAffectedOperation(Result $result): array
     {
         return Marshaler::unMarshalItem($result->toArray());
     }

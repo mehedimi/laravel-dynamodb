@@ -4,12 +4,14 @@ namespace Mehedi\LaravelDynamoDB\Eloquent;
 
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Traits\ForwardsCalls;
+use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Query\Builder as QueryBuilder;
 
 /**
  * Class Builder
  *
  * @method static array toArray()
+ * @method Builder inTesting()
  *
  * @package Mehedi\LaravelDynamoDB\Eloquent
  */
@@ -48,19 +50,31 @@ class Builder
     /**
      * Find a model by its primary key.
      *
-     * @param $key
+     * @param null $key
      * @param array $columns
-     * @return Model|null
+     * @return Model|array|null
      */
-    public function find($key, $columns = [])
+    public function find($key = null, array $columns = [])
     {
-        $item = $this->query->key($key)->getItem($columns);
+        if (! empty($key)) {
+            $this->key(...$key);
+        }
+
+        if (! empty($columns)) {
+            $this->query->select(...$columns);
+        }
+
+        $item = $this->query->from($this->model->getTable())->find();
+
+        if ($this->query->isTesting) {
+            return $item;
+        }
 
         if (is_null($item)) {
             return null;
         }
 
-        $this->model->setRawAttributes($item);
+        $this->model->newFromBuilder($item);
 
         return $this->model;
     }
@@ -117,13 +131,15 @@ class Builder
      * @param array $columns
      * @return \Mehedi\LaravelDynamoDB\Collections\ItemCollection
      */
-    public function query($columns = [])
+    public function query(array $columns = [])
     {
         if (! empty($columns)) {
             $this->query->select(...$columns);
         }
 
-        return $this->query->query();
+        return $this->query->query()->transform(function ($data) {
+            return $this->model->newFromBuilder($data);
+        });
     }
 
 
@@ -139,7 +155,9 @@ class Builder
             $this->query->select(...$columns);
         }
 
-        return $this->query->scan();
+        return $this->query->scan()->transform(function ($data) {
+            return $this->model->newFromBuilder($data);
+        });
     }
 
     /**
@@ -168,6 +186,40 @@ class Builder
         return $this;
     }
 
+    /**
+     * Set model key
+     *
+     * @param $primaryKey
+     * @param null $sortKey
+     * @throws InvalidArgumentException
+     *
+     * @return $this
+     */
+    public function key($primaryKey, $sortKey = null): Builder
+    {
+        if (is_null($sortKey) && ! is_null($this->model->getSortKeyName())) {
+            throw new InvalidArgumentException('Please define value of '. $this->model->getSortKeyName());
+        }
+
+        $key = [
+            $this->model->getKeyName() => $primaryKey
+        ];
+
+        if (! is_null($sortKey)) {
+            $key[$this->model->getSortKeyName()] = $sortKey;
+        }
+        $this->query->key($key);
+
+        return $this;
+    }
+
+    /**
+     * Handle non existence method calling
+     *
+     * @param $method
+     * @param $parameters
+     * @return $this|false|mixed
+     */
     public function __call($method, $parameters)
     {
         if (in_array($method, $this->passthru)) {

@@ -66,5 +66,75 @@ class BuilderTest extends TestCase
         $this->assertEquals($expected, $query);
     }
 
+    /**
+    * @test
+    **/
+    function it_can_add_where_on_key()
+    {
+        $query = User::whereKey('is_active', true)->toArray();
+
+        $expected = [
+            'KeyConditionExpression' => '#1 = :1',
+            'ExpressionAttributeNames' => [
+                '#1' => 'is_active'
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'S' => '1'
+                ]
+            ]
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+    * @test
+    **/
+    function it_can_add_where_multiple_key()
+    {
+        $query = User::whereKey('is_active', true)
+            ->whereKey('name', 'demo')->toArray();
+
+        $expected = [
+            'KeyConditionExpression' => '#1 = :1 and #2 = :2',
+            'ExpressionAttributeNames' => [
+                '#1' => 'is_active',
+                '#2' => 'name'
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'S' => '1'
+                ],
+                ':2' => [
+                    'S' => 'demo'
+                ]
+            ]
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+    * @test
+    **/
+    function it_can_set_model_key()
+    {
+        $query = User::key('name', 'hello')->inTesting()->find();
+        $expected = [
+            'TableName' => 'users',
+            'Key' => [
+                'primary' => [
+                    'S' => 'name'
+                ],
+                'sort' => [
+                    'S' => 'hello'
+                ]
+            ]
+        ];
+        $this->assertEquals($expected, $query);
+        $query = User::inTesting()->find(['name', 'hello']);
+        $this->assertEquals($expected, $query);
+    }
 
 }

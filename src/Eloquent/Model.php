@@ -9,8 +9,11 @@ use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
  * Class Model
  *
  * @method static Builder whereKey($column, $operator, $value = null)
+ * @method static Builder key($primaryKey, $sortKey = null)
+ * @method static Builder inTesting()
+ * @method static Model find($key, $column = [])
  *
- * @package Mehedi\LaravelDynamoDB\Eloquent
+ * @see  \Mehedi\LaravelDynamoDB\Eloquent\Builder
  */
 
 abstract class Model extends BaseModel
@@ -112,6 +115,19 @@ abstract class Model extends BaseModel
     public function newQueryWithoutScopes(): Builder
     {
         return $this->newModelQuery();
+    }
+
+    /**
+     * Set sort key name
+     *
+     * @param $name
+     * @return $this
+     */
+    public function setSortKeyName($name)
+    {
+        $this->sortKey = $name;
+
+        return $this;
     }
 
 
