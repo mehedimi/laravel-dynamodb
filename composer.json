@@ -1,5 +1,6 @@
 {
     "name": "mehedimi/laravel-dynamodb",
+    "version": "0.0.1",
     "description": "A package for Laravel to communicate DynamoDB",
     "type": "package",
     "license": "MIT",
