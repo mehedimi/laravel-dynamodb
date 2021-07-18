@@ -3,15 +3,29 @@ namespace Mehedi\LaravelDynamoDB\Tests;
 
 use Illuminate\Support\Arr;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
+use Mehedi\LaravelDynamoDB\Query\RawExpression;
+use Mehedi\LaravelDynamoDB\Query\ReturnValues;
 use PHPUnit\Framework\TestCase;
+use Mockery as m;
 
 class BuilderTest extends TestCase
 {
+    use MockHelpers;
+
     protected $connection;
+
+    protected function tearDown(): void
+    {
+        m::close();
+    }
 
     public function setUp(): void
     {
         $this->connection = new DynamoDBConnection([]);
+
+        $this->connection->setClient(new FakeClient());
+
+        $this->connection->setPostProcessor(new FakeProcessor());
     }
 
     /**
@@ -20,7 +34,7 @@ class BuilderTest extends TestCase
     public function it_can_query_from_a_table()
     {
         $query = $this
-            ->connection
+            ->getBuilder()
             ->from('Users')
             ->toArray();
 
@@ -36,9 +50,9 @@ class BuilderTest extends TestCase
      */
     public function it_can_query_by_key_expressions()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
-            ->whereKey('PK', 'USERS')
+            ->keyCondition('PK', 'USERS')
             ->toArray();
 
         $expected = [
@@ -62,10 +76,10 @@ class BuilderTest extends TestCase
      */
     public function it_can_query_by_begins_with_key_expression()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
-            ->whereKey('PK', 'USERS')
-            ->whereKeyBeginsWith('SK', 'Me')
+            ->keyCondition('PK', 'USERS')
+            ->keyConditionBeginsWith('SK', 'Me')
             ->toArray();
 
         $expected = [
@@ -93,10 +107,10 @@ class BuilderTest extends TestCase
      */
     public function it_can_query_by_between_key_expression()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
-            ->whereKey('PK', 'USERS')
-            ->whereKeyBetween('SK', '2', '4')
+            ->keyCondition('PK', 'USERS')
+            ->keyConditionBetween('SK', '2', '4')
             ->toArray();
 
         $expected = [
@@ -127,9 +141,9 @@ class BuilderTest extends TestCase
      */
     public function it_can_query_by_filter_expression()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
-            ->whereKey('PK', 'USERS')
+            ->keyCondition('PK', 'USERS')
             ->filter('is_active', true)
             ->orFilter('is_active', false)
             ->toArray();
@@ -163,7 +177,7 @@ class BuilderTest extends TestCase
      */
     public function it_can_query_using_consistent_read()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
             ->consistentRead(true)
             ->toArray();
@@ -181,9 +195,9 @@ class BuilderTest extends TestCase
      */
     public function it_can_get_result_by_backward()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
-            ->scanFromBackward()
+            ->scanIndexBackward()
             ->toArray();
 
         $expected = [
@@ -199,7 +213,7 @@ class BuilderTest extends TestCase
      */
     public function it_can_limit_query_result()
     {
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
             ->limit(10)
             ->toArray();
@@ -211,7 +225,7 @@ class BuilderTest extends TestCase
 
         $this->assertEquals($expected, $query);
 
-        $query = $this->connection
+        $query = $this->getBuilder()
             ->from('Users')
             ->limit(-1)
             ->toArray();
@@ -245,9 +259,9 @@ class BuilderTest extends TestCase
      */
     public function it_can_process_raw_expression()
     {
-        $query = $this->connection->query()->raw($this->connection->raw([
-            'TableName' => 'Users'
-        ]))->toArray();
+        $query = $this->getBuilder()
+            ->raw(new RawExpression(['TableName' => 'Users']))
+            ->toArray();
 
         $expected = [
             'TableName' => 'Users',
@@ -261,14 +275,6 @@ class BuilderTest extends TestCase
      */
     public function it_can_update_a_item()
     {
-        $query = $this->connection
-            ->table('Users')
-            ->key(['PK' => 'User-1'])
-            ->inTesting()
-            ->update([
-                'name' => 'Name Here'
-            ]);
-
         $expected = [
             'TableName' => 'Users',
             'Key' => [
@@ -284,9 +290,14 @@ class BuilderTest extends TestCase
                     'S' => 'Name Here'
                 ]
             ],
-            'UpdateExpression' => 'set #1 = :1',
-            'ReturnValues' => 'NONE'
+            'UpdateExpression' => 'set #1 = :1'
         ];
+
+        $query = $this->connection->from('Users')
+            ->key(['PK' => 'User-1'])
+            ->update([
+                'name' => 'Name Here'
+            ]);
 
         $this->assertEquals($expected, $query);
     }
@@ -297,7 +308,7 @@ class BuilderTest extends TestCase
     public function it_can_remove_attribute_from_a_item()
     {
         $query = $this->connection->table('Users')->key(['PK' => 'User-1'])
-            ->inTesting()->update([
+            ->update([
                 'name' => 'Name Here',
                 'age' => null
             ]);
@@ -318,8 +329,7 @@ class BuilderTest extends TestCase
                     'S' => 'Name Here'
                 ]
             ],
-            'UpdateExpression' => 'set #1 = :1 remove #2',
-            'ReturnValues' => 'NONE'
+            'UpdateExpression' => 'set #1 = :1 remove #2'
         ];
 
         $this->assertEquals($expected, $query);
@@ -331,7 +341,7 @@ class BuilderTest extends TestCase
     public function it_can_add_attribute_on_a_item()
     {
         $query = $this->connection->table('Users')->key(['PK' => 'User-1'])
-            ->inTesting()->update([
+            ->update([
                 'name' => 'Name Here',
                 'add:age' => 18,
                 'add:salary' => 70000,
@@ -365,8 +375,7 @@ class BuilderTest extends TestCase
                     'S' => 'dob'
                 ]
             ],
-            'UpdateExpression' => 'set #1 = :1 add #2 :2, #3 :3 delete #4 :4',
-            'ReturnValues' => 'NONE'
+            'UpdateExpression' => 'set #1 = :1 add #2 :2, #3 :3 delete #4 :4'
         ];
 
         $this->assertEquals($expected, $query);
@@ -377,10 +386,8 @@ class BuilderTest extends TestCase
      */
     public function it_can_put_item()
     {
-        $query = $this->connection
-            ->table('Users')
-            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->insert([
+        $query = $this->connection->table('Users')
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])->insert([
                 'name' => 'Name Here',
                 'age' => null
             ]);
@@ -394,7 +401,6 @@ class BuilderTest extends TestCase
                 'SK' => ['S' => 'Profile']
             ],
             'ConditionExpression' => '#1 <> :1 and #2 <> :2',
-            'ReturnValues' => 'NONE',
             'ExpressionAttributeNames' => [
                 '#1' => 'PK',
                 '#2' => 'SK',
@@ -415,12 +421,10 @@ class BuilderTest extends TestCase
     {
         $query = $this->connection
             ->table('Users')
-            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->delete();
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])->delete();
 
         $expected = [
             'TableName' => 'Users',
-            'ReturnValues' => 'NONE',
             'Key' => [
                 'PK' => ['S' => 'User-1'],
                 'SK' => ['S' => 'Profile'],
@@ -438,11 +442,10 @@ class BuilderTest extends TestCase
         $query = $this->connection
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->increment('visits');
+            ->increment('visits');
 
         $expected = [
             'TableName' => 'Users',
-            'ReturnValues' => 'NONE',
             'Key' => [
                 'PK' => ['S' => 'User-1'],
                 'SK' => ['S' => 'Profile'],
@@ -463,7 +466,7 @@ class BuilderTest extends TestCase
         $query = $this->connection
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()->increment('add:visits', 2);
+            ->increment('add:visits', 2);
 
         $expected['UpdateExpression'] = 'add #1 :1';
         Arr::set($expected, 'ExpressionAttributeValues.:1.N', 2);
@@ -479,12 +482,10 @@ class BuilderTest extends TestCase
         $query = $this->connection
             ->table('Users')
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
-            ->inTesting()
             ->decrement('visits', 1, ['updated_at' => 'now']);
 
         $expected = [
             'TableName' => 'Users',
-            'ReturnValues' => 'NONE',
             'Key' => [
                 'PK' => ['S' => 'User-1'],
                 'SK' => ['S' => 'Profile'],
@@ -502,6 +503,42 @@ class BuilderTest extends TestCase
                 ]
             ],
             'UpdateExpression' => 'set #1 = #1 - :1, #2 = :2'
+        ];
+
+        $this->assertEquals($expected, $query);
+    }
+
+    /**
+    * @test
+    **/
+    function it_can_set_return_value()
+    {
+        $query = $this->connection
+            ->table('Users')
+            ->returnValue(ReturnValues::ALL_NEW)
+            ->key(['PK' => 'User-1', 'SK' => 'Profile'])
+            ->decrement('visits', 1, ['updated_at' => 'now']);
+
+        $expected = [
+            'TableName' => 'Users',
+            'Key' => [
+                'PK' => ['S' => 'User-1'],
+                'SK' => ['S' => 'Profile'],
+            ],
+            'ExpressionAttributeNames' => [
+                '#1' => 'visits',
+                '#2' => 'updated_at'
+            ],
+            'ExpressionAttributeValues' => [
+                ':1' => [
+                    'N' => 1
+                ],
+                ':2' => [
+                    'S' => 'now'
+                ]
+            ],
+            'UpdateExpression' => 'set #1 = #1 - :1, #2 = :2',
+            'ReturnValues' => 'ALL_NEW'
         ];
 
         $this->assertEquals($expected, $query);

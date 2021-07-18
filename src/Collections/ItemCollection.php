@@ -23,7 +23,7 @@ class ItemCollection extends Collection
     /**
      * Total return items count
      *
-     * @var int|mixed
+     * @var int
      */
     protected $count = 0;
 
@@ -55,12 +55,12 @@ class ItemCollection extends Collection
         return $this->metaData;
     }
 
-    public function getItemsCount()
+    public function getItemsCount(): int
     {
         return $this->count;
     }
 
-    public function getScannedCount()
+    public function getScannedCount(): int
     {
         return $this->scannedCount;
     }

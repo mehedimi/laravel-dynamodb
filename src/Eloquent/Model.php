@@ -8,10 +8,11 @@ use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 /**
  * Class Model
  *
- * @method static Builder whereKey($column, $operator, $value = null)
+ * @method static Builder keyCondition($column, $operator, $value = null)
  * @method static Builder key($primaryKey, $sortKey = null)
- * @method static Builder inTesting()
+ * @method static Builder select(...$attributes)
  * @method static Model find($key, $column = [])
+ * @method static Model create(array $attributes)
  *
  * @see  \Mehedi\LaravelDynamoDB\Eloquent\Builder
  */
@@ -71,7 +72,7 @@ abstract class Model extends BaseModel
      *
      * @return Builder
      */
-    public static function query(): Builder
+    public static function query()
     {
         return (new static())->newQuery();
     }
@@ -128,6 +129,129 @@ abstract class Model extends BaseModel
         $this->sortKey = $name;
 
         return $this;
+    }
+
+    /**
+     * Save the model
+     *
+     * @param array $options
+     * @return array|bool
+     */
+    public function save(array $options = [])
+    {
+        $this->mergeAttributesFromClassCasts();
+
+        $query = $this->newModelQuery();
+
+        if ($this->fireModelEvent('saving') === false) {
+            return false;
+        }
+
+        if ($this->exists) {
+            $saved = !$this->isDirty() || $this->updatePerform($query);
+        } else {
+            $saved = $this->insertPerform($query);
+
+            if (! $this->getConnectionName() &&
+                $connection = $query->getConnection()) {
+                $this->setConnection($connection->getName());
+            }
+        }
+
+        // If the model is successfully saved, we need to do a few more things once
+        // that is done. We will call the "saved" method here to run any actions
+        // we need to happen after a model gets successfully saved right here.
+        if ($saved) {
+            $this->finishSave($options);
+        }
+
+        return $saved;
+    }
+
+    /**
+     * @param Builder $query
+     * @return array|bool
+     */
+    protected function insertPerform(Builder $query)
+    {
+        if ($this->fireModelEvent('creating') === false) {
+            return false;
+        }
+
+        // First we'll need to create a fresh query instance and touch the creation and
+        // update timestamps on this model, which are maintained by us for developer
+        // convenience. After, we will just continue saving these model instances.
+        if ($this->usesTimestamps()) {
+            $this->updateTimestamps();
+        }
+
+        $attributes = $this->getAttributesForInsert();
+
+        if (empty($attributes)) {
+            return true;
+        }
+
+        $response = $query->insert($attributes);
+
+        // We will go ahead and set the exists property to true, so that it is set when
+        // the created event is fired, just in case the developer tries to update it
+        // during the event. This will allow them to do so and run an update here.
+        $this->exists = true;
+
+        $this->wasRecentlyCreated = true;
+
+        $this->fireModelEvent('created', false);
+
+        return $response;
+    }
+
+    /**
+     * @param $query
+     * @return bool
+     */
+    protected function updatePerform($query)
+    {
+        // If the updating event returns false, we will cancel the update operation so
+        // developers can hook Validation systems into their models and cancel this
+        // operation if the model does not pass validation. Otherwise, we update.
+        if ($this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
+        // First we need to create a fresh query instance and touch the creation and
+        // update timestamp on the model which are maintained by us for developer
+        // convenience. Then we will just continue saving the model instances.
+        if ($this->usesTimestamps()) {
+            $this->updateTimestamps();
+        }
+
+        // Once we have run the update operation, we will fire the "updated" event for
+        // this model instance. This will allow developers to hook into these after
+        // models are updated, giving them a chance to do any special processing.
+        $dirty = $this->getDirty();
+
+        if (count($dirty) > 0) {
+            $this->setKeysForSaveQuery($query)->update($dirty);
+
+            $this->syncChanges();
+
+            $this->fireModelEvent('updated', false);
+        }
+
+        return true;
+    }
+
+    /**
+     * Set the keys for a save update query.
+     *
+     * @param  Builder  $query
+     * @return Builder
+     */
+    protected function setKeysForSaveQuery($query): Builder
+    {
+        $query->key($this->getKey());
+
+        return $query;
     }
 
 

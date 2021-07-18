@@ -5,7 +5,7 @@ namespace Mehedi\LaravelDynamoDB\Query;
 use Illuminate\Database\Grammar as BaseGrammar;
 use Mehedi\LaravelDynamoDB\Utils\Marshaler;
 
-class Grammar extends BaseGrammar
+class DynamoDBGrammar extends BaseGrammar
 {
     /**
      * Select component
@@ -36,7 +36,8 @@ class Grammar extends BaseGrammar
         'key',
         'expression',
         'raw',
-        'updates'
+        'returnValue',
+        'updates',
     ];
 
     /**
@@ -49,7 +50,8 @@ class Grammar extends BaseGrammar
         'item',
         'conditionExpressions',
         'expression',
-        'raw'
+        'raw',
+        'returnValue'
     ];
 
     /**
@@ -62,7 +64,8 @@ class Grammar extends BaseGrammar
         'key',
         'conditionExpressions',
         'expression',
-        'raw'
+        'raw',
+        'returnValue'
     ];
 
     /**
@@ -84,7 +87,7 @@ class Grammar extends BaseGrammar
      * @param Builder $builder
      * @return array
      */
-    public function compileGetItem(Builder $builder)
+    public function compileGetItem(Builder $builder): array
     {
         return $this->compile($builder, $this->getItemComponents);
     }
@@ -93,54 +96,33 @@ class Grammar extends BaseGrammar
      * Compile insert query
      *
      * @param Builder $builder
-     * @param $returnValues
      * @return array
      */
-    public function compileInsertQuery(Builder $builder, $returnValues)
+    public function compileInsertQuery(Builder $builder): array
     {
-        $query = $this->compile($builder, $this->insertComponents);
-
-        if (! empty($returnValues)) {
-            $query['ReturnValues'] = $returnValues;
-        }
-
-        return $query;
+        return $this->compile($builder, $this->insertComponents);
     }
 
     /**
      * Compile delete query
      *
      * @param Builder $builder
-     * @param $returnValues
      * @return array
      */
-    public function compileDeleteQuery(Builder $builder, $returnValues)
+    public function compileDeleteQuery(Builder $builder): array
     {
-        $query = $this->compile($builder, $this->deleteComponents);
-
-        if (! empty($returnValues)) {
-            $query['ReturnValues'] = $returnValues;
-        }
-
-        return $query;
+        return $this->compile($builder, $this->deleteComponents);
     }
 
     /**
      * Compile update query
      *
      * @param Builder $builder
-     * @param $returnValues
      * @return array
      */
-    public function compileUpdateQuery(Builder $builder, $returnValues)
+    public function compileUpdateQuery(Builder $builder): array
     {
-        $query = $this->compile($builder, $this->updateComponents);
-
-        if (! empty($returnValues)) {
-            $query['ReturnValues'] = $returnValues;
-        }
-
-        return $query;
+        return $this->compile($builder, $this->updateComponents);
     }
 
     /**
@@ -406,5 +388,16 @@ class Grammar extends BaseGrammar
         foreach ($conditionExpressions as $expression) {
             $query['ConditionExpression'] .= sprintf(' %s %s', $expression[1], $expression[0]);
         }
+    }
+
+    /**
+     * Compile return type
+     *
+     * @param string $returnValue
+     * @param $query
+     */
+    public function compileReturnValue(string $returnValue, &$query)
+    {
+        $query['ReturnValues'] = $returnValue;
     }
 }

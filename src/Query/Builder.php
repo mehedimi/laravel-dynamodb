@@ -2,6 +2,7 @@
 
 namespace Mehedi\LaravelDynamoDB\Query;
 
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
@@ -10,9 +11,9 @@ use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 class Builder
 {
     /**
-     * Dynamodb connection
+     * The database connection instance.
      *
-     * @var DynamoDBConnection $connection
+     * @var DynamoDBConnection
      */
     public $connection;
 
@@ -59,6 +60,19 @@ class Builder
     public $from;
 
     /**
+     * The database query grammar instance.
+     *
+     * @var DynamoDBGrammar
+     */
+    public $grammar;
+
+    /**
+     * The database query post processor instance.
+     *
+     * @var Processor
+     */
+    public $processor;
+    /**
      * The name of an index to query.
      *
      * @var string $indexName
@@ -71,13 +85,6 @@ class Builder
      * @var array $item
      */
     public $item;
-
-    /**
-     * Is testing
-     *
-     * @var bool $isTesting
-     */
-    public $isTesting = false;
 
     /**
      * Key attribute of a item
@@ -115,6 +122,13 @@ class Builder
     public $raw;
 
     /**
+     * Return type of operation response
+     *
+     * @var string $returnType
+     */
+    public $returnValue;
+
+    /**
      * Specifies the order for index traversal.
      *
      * @var boolean $scanIndexForward
@@ -134,10 +148,14 @@ class Builder
     ];
 
 
-    public function __construct(DynamoDBConnection $connection)
+    public function __construct(ConnectionInterface $connection,
+                                DynamoDBGrammar $grammar = null,
+                                Processor $processor = null)
     {
         $this->connection = $connection;
         $this->expression = new Expression();
+        $this->grammar = $grammar ?: $connection->getQueryGrammar();
+        $this->processor = $processor ?: $connection->getPostProcessor();
     }
 
     /**
@@ -264,12 +282,11 @@ class Builder
      * @param $column
      * @param int|float $amount
      * @param array $extra
-     * @param string $returnValues
      * @return array
      *
      * @throws InvalidArgumentException
      */
-    public function decrement($column, $amount = 1, array $extra = [], string $returnValues = ReturnValue::NONE): array
+    public function decrement($column, $amount = 1, array $extra = []): array
     {
         $this->checkKeyExists();
 
@@ -282,28 +299,23 @@ class Builder
 
         $this->updates['set'][] = sprintf('%s = %s - %s', $column, $column, $amount);
 
-        return $this->update($extra, $returnValues);
+        return $this->update($extra);
     }
 
     /**
      * Delete an item
      *
-     * @param string $returnValues
      * @return array
      */
-    public function delete(string $returnValues = ReturnValue::NONE): array
+    public function delete(): array
     {
         $this->checkKeyExists();
 
-        $query = $this->connection->queryGrammar->compileDeleteQuery($this, $returnValues);
-
-        if ($this->isTesting) {
-            return $query;
-        }
+        $query = $this->grammar->compileDeleteQuery($this);
 
         $response = $this->connection->getClient()->deleteItem($query);
 
-        return $this->connection->postProcessor->processAffectedOperation($response);
+        return $this->processor->processAffectedOperation($response);
     }
 
     /**
@@ -316,7 +328,7 @@ class Builder
     {
         $result = $this->connection->getClient()->{$mode}($this->toArray());
 
-        return $this->connection->postProcessor->processItems($result);
+        return $this->processor->processItems($result);
     }
 
     /**
@@ -383,7 +395,7 @@ class Builder
      */
     public function first(array $columns = [], string $mode = FetchMode::QUERY): ?array
     {
-        return $this->limit(1)->{$mode}($columns);
+        return $this->limit(1)->{$mode}($columns)->first();
     }
 
     /**
@@ -395,28 +407,32 @@ class Builder
     {
         $this->checkKeyExists();
 
-        $query = $this->connection->queryGrammar->compileGetItem($this);
-
-        if ($this->isTesting) {
-            return $query;
-        }
+        $query = $this->grammar->compileGetItem($this);
 
         $result = $this->connection->getClient()->getItem($query);
 
-        return $this->connection->postProcessor->processItem($result);
+        return $this->processor->processItem($result);
     }
 
     /**
-     * Is testing
+     * Get the database connection instance.
      *
-     * @param bool $mode
-     * @return $this
+     * @return \Illuminate\Database\ConnectionInterface
      */
-    public function inTesting(bool $mode = true): Builder
+    public function getConnection()
     {
-        $this->isTesting = $mode;
+        return $this->connection;
+    }
 
-        return $this;
+    /**
+     * Get an item from the database
+     *
+     * @return array
+     * @alias find()
+     */
+    public function getItem()
+    {
+        return $this->find();
     }
 
     /**
@@ -425,11 +441,10 @@ class Builder
      * @param string $column
      * @param int|float $amount
      * @param array $extra
-     * @param string $returnValues
      * @return array
      *
      */
-    public function increment(string $column, $amount = 1, array $extra = [], string $returnValues = ReturnValue::NONE): array
+    public function increment(string $column, $amount = 1, array $extra = []): array
     {
         $this->checkKeyExists();
 
@@ -445,23 +460,22 @@ class Builder
             $this->updates['set'][] = sprintf('%s = %s + %s', $column, $column, $amount);
         }
 
-        return $this->update($extra, $returnValues);
+        return $this->update($extra);
     }
 
     /**
      * Insert item
      *
      * @param array $item
-     * @param string $returnValues
      * @return array|false
      */
-    public function insert(array $item, string $returnValues = ReturnValue::NONE)
+    public function insert(array $item)
     {
         foreach ($this->key ?? [] as $keyColumn => $keyValue) {
             $this->condition($keyColumn, '<>', $keyValue);
         }
 
-        return $this->putItem($item, $returnValues);
+        return $this->putItem($item);
     }
 
     /**
@@ -471,20 +485,20 @@ class Builder
      * @param string $returnValues
      * @return array|false
      */
-    public function insertOrReplace(array $item, string $returnValues = ReturnValue::NONE)
+    public function insertOrReplace(array $item, string $returnValues = ReturnValues::NONE)
     {
-        return $this->putItem($item, $returnValues);
+        return $this->putItem($item);
     }
 
     /**
      * Add condition expression on key
      *
      * @param string $column
-     * @param string $operator
+     * @param $operator
      * @param null $value
      * @return $this
      */
-    public function whereKey(string $column, string $operator, $value = null): Builder
+    public function keyCondition(string $column, $operator, $value = null): Builder
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -506,7 +520,7 @@ class Builder
      * @param string $to
      * @return $this
      */
-    public function whereKeyBetween(string $column, string $from, string $to): Builder
+    public function keyConditionBetween(string $column, string $from, string $to): Builder
     {
         $column = $this->expression->addName($column);
         $from = $this->expression->addValue($from);
@@ -523,7 +537,7 @@ class Builder
      * @param string $value
      * @return $this
      */
-    public function whereKeyBeginsWith(string $column, string $value): Builder
+    public function keyConditionBeginsWith(string $column, string $value): Builder
     {
         $column = $this->expression->addName($column);
         $value = $this->expression->addValue($value);
@@ -580,10 +594,9 @@ class Builder
      * Put item
      *
      * @param $item
-     * @param string $returnValues
      * @return array|false
      */
-    public function putItem($item, string $returnValues = ReturnValue::NONE)
+    public function putItem($item)
     {
         if (empty($item)) {
             return false;
@@ -595,11 +608,7 @@ class Builder
             $this->item += $this->key;
         }
 
-        $query = $this->connection->queryGrammar->compileInsertQuery($this, $returnValues);
-
-        if ($this->isTesting) {
-            return $query;
-        }
+        $query = $this->connection->queryGrammar->compileInsertQuery($this);
 
         $response = $this->connection->getClient()->putItem($query);
 
@@ -629,7 +638,7 @@ class Builder
      * @param bool $type
      * @return $this
      */
-    public function scanFromBackward(bool $type = true): Builder
+    public function scanIndexBackward(bool $type = true): Builder
     {
         $this->scanIndexForward = ! $type;
 
@@ -686,7 +695,7 @@ class Builder
      */
     public function toArray(): array
     {
-        return $this->connection->queryGrammar->compileQuery($this);
+        return $this->grammar->compileQuery($this);
     }
 
     /**
@@ -698,6 +707,19 @@ class Builder
     public function raw(RawExpression $query): Builder
     {
         $this->raw = $query;
+
+        return $this;
+    }
+
+    /**
+     * Set operation return value type
+     *
+     * @param $valueType
+     * @return $this
+     */
+    public function returnValue($valueType): Builder
+    {
+        $this->returnValue = $valueType;
 
         return $this;
     }
@@ -726,10 +748,9 @@ class Builder
      * Perform update query
      *
      * @param array $item
-     * @param string $returnValues
      * @return array
      */
-    public function update(array $item, string $returnValues = ReturnValue::NONE): array
+    public function update(array $item): array
     {
         $this->checkKeyExists();
 
@@ -756,14 +777,10 @@ class Builder
             }
         }
 
-        $query = $this->connection->queryGrammar->compileUpdateQuery($this, $returnValues);
-
-        if ($this->isTesting) {
-            return $query;
-        }
+        $query = $this->grammar->compileUpdateQuery($this);
 
         $response = $this->connection->getClient()->updateItem($query);
 
-        return $this->connection->postProcessor->processUpdate($response);
+        return $this->processor->processUpdate($response);
     }
 }

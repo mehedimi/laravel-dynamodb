@@ -2,18 +2,24 @@
 
 namespace Mehedi\LaravelDynamoDB\Eloquent;
 
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Query\Builder as QueryBuilder;
+use Mehedi\LaravelDynamoDB\Query\FetchMode;
+use Mehedi\LaravelDynamoDB\Query\ReturnValues;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
  * Class Builder
  *
  * @method static array toArray()
  * @method Builder inTesting()
+ * @method insert(array $attributes)
+ * @method Builder keyCondition(string $column, $operator, $value = null)
+ * @method Builder keyConditionBetween(string $column, string $from, string $to)
+ * @method Builder keyConditionBeginsWith(string $column, string $value)
  *
- * @package Mehedi\LaravelDynamoDB\Eloquent
+ * @see  \Mehedi\LaravelDynamoDB\Query\Builder
  */
 class Builder
 {
@@ -39,7 +45,7 @@ class Builder
      * @var string[]
      */
     protected $passthru = [
-        'toArray',
+        'toArray', 'insert'
     ];
 
     public function __construct(QueryBuilder $query)
@@ -52,11 +58,13 @@ class Builder
      *
      * @param null $key
      * @param array $columns
-     * @return Model|array|null
+     * @return Model|null
      */
-    public function find($key = null, array $columns = [])
+    public function find($key, array $columns = [])
     {
-        if (! empty($key)) {
+        if (is_string($key)) {
+            $this->key($key);
+        } elseif (is_array($key)) {
             $this->key(...$key);
         }
 
@@ -66,9 +74,6 @@ class Builder
 
         $item = $this->query->from($this->model->getTable())->find();
 
-        if ($this->query->isTesting) {
-            return $item;
-        }
 
         if (is_null($item)) {
             return null;
@@ -88,7 +93,7 @@ class Builder
      *
      * @throws ModelNotFoundException
      */
-    public function findOrFail($key, $columns = [])
+    public function findOrFail($key, array $columns = [])
     {
         $model = $this->find($key, $columns);
 
@@ -101,28 +106,17 @@ class Builder
     }
 
     /**
-     *  Add where condition on key attribute
+     *  Get the first item
      *
-     * @param $column
-     * @param $operator
-     * @param null $value
-     * @return $this|Builder
-     */
-    public function whereKey($column, $operator, $value = null)
-    {
-        $this->query->whereKey(...func_get_args());
-
-        return $this;
-    }
-
-    /**
-     * @inheritdoc
-     *
+     * @param string[] $columns
+     * @param string $mode
      * @return Model|null
      */
-    public function first($columns = ['*'])
+    public function first(array $columns = ['*'], string $mode = FetchMode::QUERY): ?Model
     {
-        return $this->query->first($columns);
+        $item = $this->query->first($columns, $mode);
+
+        return is_null($item) ? null : $this->model->newFromBuilder($item);
     }
 
     /**
@@ -140,6 +134,41 @@ class Builder
         return $this->query->query()->transform(function ($data) {
             return $this->model->newFromBuilder($data);
         });
+    }
+
+    /**
+     * Save a new model and return the instance.
+     *
+     * @param  array  $attributes
+     * @return Model|$this
+     */
+    public function create(array $attributes = [])
+    {
+        return tap($this->newModelInstance($attributes), function (Model $instance) {
+            $instance->save();
+        });
+    }
+
+    /**
+     * Get the query builder instance
+     *
+     * @return QueryBuilder
+     */
+    public function getQuery()
+    {
+        return $this->query;
+    }
+
+    /**
+     * Update model
+     *
+     * @param array $values
+     * @param string $returnValues
+     * @return array
+     */
+    public function update(array $values, string $returnValues = ReturnValues::NONE): array
+    {
+        return $this->query->update($values);
     }
 
 
@@ -163,10 +192,10 @@ class Builder
     /**
      * Create a new instance of the model being queried.
      *
-     * @param  array  $attributes
+     * @param array $attributes
      * @return \Illuminate\Database\Eloquent\Model|static
      */
-    public function newModelInstance($attributes = [])
+    public function newModelInstance(array $attributes = [])
     {
         return $this->model->newInstance($attributes)->setConnection(
             $this->query->connection->getName()
@@ -174,16 +203,27 @@ class Builder
     }
 
     /**
-     * Set model instance
+     * Set a model instance for the model being queried.
      *
-     * @param Model $model
+     * @param  Model  $model
      * @return $this
      */
-    public function setModel(Model $model)
+    public function setModel(Model $model): Builder
     {
         $this->model = $model;
+        $this->query->from($model->getTable());
 
         return $this;
+    }
+
+    /**
+     * Get the model instance being queried.
+     *
+     * @return Model
+     */
+    public function getModel(): Model
+    {
+        return $this->model;
     }
 
     /**
@@ -230,5 +270,4 @@ class Builder
 
         return $this;
     }
-
 }

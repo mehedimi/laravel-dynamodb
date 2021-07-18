@@ -5,7 +5,7 @@ use Aws\DynamoDb\DynamoDbClient;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Traits\ForwardsCalls;
 use Mehedi\LaravelDynamoDB\Query\Builder;
-use Mehedi\LaravelDynamoDB\Query\Grammar;
+use Mehedi\LaravelDynamoDB\Query\DynamoDBGrammar;
 use Mehedi\LaravelDynamoDB\Query\Processor;
 use Mehedi\LaravelDynamoDB\Query\RawExpression;
 
@@ -28,7 +28,7 @@ class DynamoDBConnection extends Connection
     /**
      * Query grammar
      *
-     * @var Grammar $grammar
+     * @var DynamoDBGrammar $grammar
      */
     public $queryGrammar;
 
@@ -43,7 +43,7 @@ class DynamoDBConnection extends Connection
     public function __construct($config)
     {
         $this->config = $config;
-        $this->client = $this->makeClient($config);
+        $this->makeClient($config);
 
         $this->tablePrefix = $config['prefix'] ?? null;
 
@@ -56,11 +56,11 @@ class DynamoDBConnection extends Connection
      * Make dynamodb client
      *
      * @param $config
-     * @return DynamoDbClient
+     * @return DynamoDBConnection
      */
-    public function makeClient($config): DynamoDbClient
+    public function makeClient($config)
     {
-        return new DynamoDbClient([
+        $client = new DynamoDbClient([
             'region' => $config['region'] ?? 'us-east-1',
             'version' => $config['version'] ?? 'latest',
             'credentials' => [
@@ -69,6 +69,8 @@ class DynamoDBConnection extends Connection
             ],
             'endpoint' => $config['endpoint'] ?? null
         ]);
+
+        return $this->setClient($client);
     }
 
     /**
@@ -95,11 +97,10 @@ class DynamoDBConnection extends Connection
     /**
      * Get default query grammar
      *
-     * @return Grammar
      */
-    public function getDefaultQueryGrammar(): Grammar
+    public function getDefaultQueryGrammar()
     {
-        return $this->withTablePrefix(new Grammar());
+        return $this->withTablePrefix(new DynamoDBGrammar());
     }
 
     /**
@@ -117,9 +118,22 @@ class DynamoDBConnection extends Connection
      *
      * @return DynamoDbClient
      */
-    public function getClient(): DynamoDbClient
+    public function getClient()
     {
         return $this->client;
+    }
+
+    /**
+     * Set the dynamodb client
+     *
+     * @param $client
+     * @return $this
+     */
+    public function setClient($client)
+    {
+        $this->client = $client;
+
+        return $this;
     }
 
     /**

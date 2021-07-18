@@ -4,7 +4,7 @@
 namespace Mehedi\LaravelDynamoDB\Query;
 
 
-class ReturnValue
+class ReturnValues
 {
     /**
      * Return nothing
