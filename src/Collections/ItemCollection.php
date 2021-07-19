@@ -27,6 +27,13 @@ class ItemCollection extends Collection
      */
     protected $count = 0;
 
+    /**
+     * Last evaluate key
+     *
+     * @var array|null
+     */
+    protected $lastEvaluatedKey;
+
     public function __construct($data = [])
     {
         parent::__construct($data);
@@ -55,11 +62,41 @@ class ItemCollection extends Collection
         return $this->metaData;
     }
 
+    /**
+     * Get items count
+     *
+     * @return int
+     */
     public function getItemsCount(): int
     {
         return $this->count;
     }
 
+    /**
+     * Get the last evaluate key
+     *
+     * @return array|null
+     */
+    public function getLastEvaluatedKey()
+    {
+        return $this->lastEvaluatedKey;
+    }
+
+    /**
+     * Has next any items
+     *
+     * @return bool
+     */
+    public function hasNextItems()
+    {
+        return is_array($this->lastEvaluatedKey);
+    }
+
+    /**
+     * Get scanned row count
+     *
+     * @return int
+     */
     public function getScannedCount(): int
     {
         return $this->scannedCount;
@@ -87,6 +124,19 @@ class ItemCollection extends Collection
     public function setItemsCount($count): ItemCollection
     {
         $this->count = $count;
+
+        return $this;
+    }
+
+    /**
+     * Set last evaluate key
+     *
+     * @param $key
+     * @return $this
+     */
+    public function setLastEvaluatedKey($key)
+    {
+        $this->lastEvaluatedKey = $key;
 
         return $this;
     }

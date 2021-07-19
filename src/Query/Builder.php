@@ -6,10 +6,13 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
+use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 
 class Builder
 {
+    use BuildQueries;
+
     /**
      * The database connection instance.
      *
@@ -422,6 +425,22 @@ class Builder
     public function getConnection()
     {
         return $this->connection;
+    }
+
+    /**
+     * Get items collection
+     *
+     * @param array $columns
+     * @param string $mode
+     * @return ItemCollection
+     */
+    public function get($columns = [], $mode = FetchMode::QUERY)
+    {
+        if (! empty($columns)) {
+            $this->select($columns);
+        }
+
+        return $this->fetch($mode);
     }
 
     /**

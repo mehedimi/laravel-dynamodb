@@ -22,10 +22,13 @@ class Processor
             return Marshaler::unMarshalItem($item);
         }, $data['Items']);
 
+        $lastEvaluatedKey = array_key_exists('LastEvaluatedKey', $data) ? Marshaler::unMarshalItem($data['LastEvaluatedKey']) : null;
+
         return (new ItemCollection($data['Items']))
             ->setItemsCount($data['ScannedCount'])
             ->setItemsCount($data['Count'])
-            ->setMetaData($data['@metadata']);
+            ->setMetaData($data['@metadata'])
+            ->setLastEvaluatedKey($lastEvaluatedKey);
     }
 
     /**

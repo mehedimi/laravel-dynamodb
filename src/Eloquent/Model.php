@@ -254,6 +254,39 @@ abstract class Model extends BaseModel
         return $query;
     }
 
+    /**
+     * @inheritDoc
+     */
+    public function fresh($with = [])
+    {
+        if (! $this->exists) {
+            return;
+        }
+
+        return $this->find($this->getKey());
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function refresh()
+    {
+        if (! $this->exists) {
+            return $this;
+        }
+
+        /** @var \Mehedi\LaravelDynamoDB\Query\Builder $query */
+        $query = $this->newQuery()->getQuery();
+
+        $attributes = $query->key($this->getKey())->getItem();
+
+        $this->setRawAttributes($attributes);
+
+        $this->syncOriginal();
+
+        return $this;
+    }
+
 
     /**
      * Handle dynamic method calls into the model.

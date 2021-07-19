@@ -4,6 +4,8 @@ namespace Mehedi\LaravelDynamoDB\Eloquent;
 
 use Illuminate\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
+use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
+use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
 use Mehedi\LaravelDynamoDB\Query\Builder as QueryBuilder;
 use Mehedi\LaravelDynamoDB\Query\FetchMode;
 use Mehedi\LaravelDynamoDB\Query\ReturnValues;
@@ -23,7 +25,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  */
 class Builder
 {
-    use ForwardsCalls;
+    use ForwardsCalls, BuildQueries;
 
     /**
      * Query builder instance
@@ -134,6 +136,32 @@ class Builder
         return $this->query->query()->transform(function ($data) {
             return $this->model->newFromBuilder($data);
         });
+    }
+
+    /**
+     * Get items collection
+     *
+     * @param array $columns
+     * @param string $mode
+     * @return ItemCollection
+     */
+    public function get(array $columns = [], string $mode = FetchMode::QUERY)
+    {
+        $this->checkFetchMode($mode);
+
+        return call_user_func([$this, $mode], [$columns]);
+    }
+
+    /**
+     * Validate fetch mode
+     *
+     * @param $mode
+     */
+    protected function checkFetchMode($mode)
+    {
+        if (! in_array($mode, [FetchMode::QUERY, FetchMode::SCAN])) {
+            throw new InvalidArgumentException('Invalid fetch mode: '. $mode);
+        }
     }
 
     /**
