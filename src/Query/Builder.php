@@ -2,13 +2,31 @@
 
 namespace Mehedi\LaravelDynamoDB\Query;
 
+use BadMethodCallException;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Processors\Processor;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 
+/**
+ * Class Builder
+ *
+ * @method Builder conditionAttributeExists($path)
+ * @method Builder orConditionAttributeExists($path)
+ * @method Builder conditionAttributeNotExists($path)
+ * @method Builder orConditionAttributeNotExists($path)
+ * @method Builder conditionAttributeType($path, $type)
+ * @method Builder orConditionAttributeType($path, $type)
+ * @method Builder conditionBeginsWith($path, $substr)
+ * @method Builder orConditionBeginsWith($path, $substr)
+ * @method Builder conditionContains($path, $operand)
+ * @method Builder orConditionContains($path, $operand)
+ *
+ * @package Mehedi\LaravelDynamoDB\Query
+ */
 class Builder
 {
     use BuildQueries;
@@ -33,6 +51,19 @@ class Builder
      * @var array $conditionExpressions
      */
     public $conditionExpressions = [];
+
+    /**
+     * List of conditional functions
+     *
+     * @var string[]
+     */
+    protected $conditionalFunctions = [
+        'attribute_exists',
+        'attribute_not_exists',
+        'attribute_type',
+        'begins_with',
+        'contains'
+    ];
 
     /**
      * The primary key of the first item that this operation will evaluate.
@@ -72,7 +103,7 @@ class Builder
     /**
      * The database query post processor instance.
      *
-     * @var Processor
+     * @var DynamoDBProcessor
      */
     public $processor;
     /**
@@ -129,7 +160,7 @@ class Builder
      *
      * @var string $returnType
      */
-    public $returnValue;
+    public $returnValues;
 
     /**
      * Specifies the order for index traversal.
@@ -238,6 +269,43 @@ class Builder
     }
 
     /**
+     * Add function condition
+     *
+     * @param $functionName
+     * @param $name
+     * @param null $value
+     * @param string $type
+     * @return $this
+     */
+    protected function addConditionFunction($functionName, $name, $value = null, string $type = 'and')
+    {
+        $name = $this->expression->addName($name);
+        $arguments = [$name];
+
+        if (! is_null($value)) {
+            $arguments[] = $this->expression->addValue($value);
+        }
+
+        $this->conditionExpressions[] = [
+            sprintf('%s(%s)', $functionName, implode(', ', $arguments)), $type
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Alias of exclusive start key
+     *
+     * @alias exclusiveStartKey($key)
+     * @param $key
+     * @return $this
+     */
+    public function afterKey($key)
+    {
+        return $this->exclusiveStartKey($key);
+    }
+
+    /**
      * Check key is exists to the instance
      *
      * @throws InvalidArgumentException
@@ -280,6 +348,29 @@ class Builder
     }
 
     /**
+     * Add size condition
+     *
+     * @param $column
+     * @param $operator
+     * @param null $value
+     * @param string $type
+     * @return $this
+     */
+    public function conditionSize($column, $operator, $value = null, string $type = 'and'): Builder
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        $column = $this->expression->addName($column);
+        $value = $this->expression->addValue($value);
+
+        $this->conditionExpressions[] = [sprintf('size(%s) %s %s', $column, $operator, $value), $type];
+
+        return $this;
+    }
+
+    /**
      * Decrement a column's value by a given amount.
      *
      * @param $column
@@ -319,6 +410,19 @@ class Builder
         $response = $this->connection->getClient()->deleteItem($query);
 
         return $this->processor->processAffectedOperation($response);
+    }
+
+    /**
+     * Add exclusive start
+     *
+     * @param $key
+     * @return $this
+     */
+    public function exclusiveStartKey($key)
+    {
+        $this->exclusiveStartKey = $key;
+
+        return $this;
     }
 
     /**
@@ -627,11 +731,11 @@ class Builder
             $this->item += $this->key;
         }
 
-        $query = $this->connection->queryGrammar->compileInsertQuery($this);
+        $query = $this->grammar->compileInsertQuery($this);
 
         $response = $this->connection->getClient()->putItem($query);
 
-        return $this->connection->postProcessor->processAffectedOperation($response);
+        return $this->processor->processAffectedOperation($response);
     }
 
     /**
@@ -662,6 +766,40 @@ class Builder
         $this->scanIndexForward = ! $type;
 
         return $this;
+    }
+
+    /**
+     * Add or condition
+     *
+     * @param $column
+     * @param $operator
+     * @param null $value
+     * @return $this
+     */
+    public function orCondition($column, $operator, $value = null): Builder
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->addCondition($column, $operator, $value, 'or');
+    }
+
+    /**
+     * Add size condition
+     *
+     * @param $column
+     * @param $operator
+     * @param null $value
+     * @return $this
+     */
+    public function orConditionSize($column, $operator, $value = null): Builder
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->conditionSize($column, $operator, $value, 'or');
     }
 
     /**
@@ -736,9 +874,9 @@ class Builder
      * @param $valueType
      * @return $this
      */
-    public function returnValue($valueType): Builder
+    public function returnValues($valueType): Builder
     {
-        $this->returnValue = $valueType;
+        $this->returnValues = $valueType;
 
         return $this;
     }
@@ -800,6 +938,26 @@ class Builder
 
         $response = $this->connection->getClient()->updateItem($query);
 
-        return $this->processor->processUpdate($response);
+        return $this->processor->processAffectedOperation($response);
+    }
+
+    /**
+     * Handle condition function call
+     *
+     * @param $name
+     * @param $arguments
+     * @return $this
+     */
+    public function __call($name, $arguments)
+    {
+        $method = Str::snake(preg_replace('/(or)?condition/i', '', $name));
+
+        if (in_array($method, $this->conditionalFunctions, true)) {
+            return $this->addConditionFunction($method, $arguments[0], $arguments[1] ?? null, Str::startsWith($name, 'or') ? 'or' : 'and');
+        }
+
+        throw new BadMethodCallException(sprintf(
+            'Call to undefined method %s::%s()', static::class, $method
+        ));
     }
 }

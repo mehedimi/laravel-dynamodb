@@ -36,7 +36,7 @@ class DynamoDBGrammar extends BaseGrammar
         'key',
         'expression',
         'raw',
-        'returnValue',
+        'returnValues',
         'updates',
     ];
 
@@ -51,7 +51,7 @@ class DynamoDBGrammar extends BaseGrammar
         'conditionExpressions',
         'expression',
         'raw',
-        'returnValue'
+        'returnValues'
     ];
 
     /**
@@ -65,7 +65,7 @@ class DynamoDBGrammar extends BaseGrammar
         'conditionExpressions',
         'expression',
         'raw',
-        'returnValue'
+        'returnValues'
     ];
 
     /**
@@ -190,7 +190,7 @@ class DynamoDBGrammar extends BaseGrammar
     protected function compileExclusiveStartKey($exclusiveStartKey, &$query)
     {
         if (! empty($exclusiveStartKey)) {
-            $query['ExclusiveStartKey'] = $exclusiveStartKey;
+            $query['ExclusiveStartKey'] = Marshaler::marshalItem($exclusiveStartKey);
         }
     }
 
@@ -396,7 +396,7 @@ class DynamoDBGrammar extends BaseGrammar
      * @param string $returnValue
      * @param $query
      */
-    public function compileReturnValue(string $returnValue, &$query)
+    public function compileReturnValues(string $returnValue, &$query)
     {
         $query['ReturnValues'] = $returnValue;
     }

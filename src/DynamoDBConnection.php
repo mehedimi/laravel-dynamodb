@@ -6,7 +6,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Support\Traits\ForwardsCalls;
 use Mehedi\LaravelDynamoDB\Query\Builder;
 use Mehedi\LaravelDynamoDB\Query\DynamoDBGrammar;
-use Mehedi\LaravelDynamoDB\Query\Processor;
+use Mehedi\LaravelDynamoDB\Query\DynamoDBProcessor;
 use Mehedi\LaravelDynamoDB\Query\RawExpression;
 
 class DynamoDBConnection extends Connection
@@ -35,7 +35,7 @@ class DynamoDBConnection extends Connection
     /**
      * Result processor
      *
-     * @var Processor $processor
+     * @var DynamoDBProcessor $processor
      */
     public $postProcessor;
 
@@ -106,11 +106,11 @@ class DynamoDBConnection extends Connection
     /**
      * Get default post processor
      *
-     * @return Processor
+     * @return DynamoDBProcessor
      */
-    public function getDefaultPostProcessor(): Processor
+    public function getDefaultPostProcessor(): DynamoDBProcessor
     {
-        return new Processor();
+        return new DynamoDBProcessor();
     }
 
     /**

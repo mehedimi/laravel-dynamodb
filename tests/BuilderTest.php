@@ -515,7 +515,7 @@ class BuilderTest extends TestCase
     {
         $query = $this->connection
             ->table('Users')
-            ->returnValue(ReturnValues::ALL_NEW)
+            ->returnValues(ReturnValues::ALL_NEW)
             ->key(['PK' => 'User-1', 'SK' => 'Profile'])
             ->decrement('visits', 1, ['updated_at' => 'now']);
 
@@ -544,4 +544,114 @@ class BuilderTest extends TestCase
         $this->assertEquals($expected, $query);
     }
 
+    /**
+    * @test
+    **/
+    function it_can_add_condition_expression()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->condition('PK', '=', 'demo')
+            ->orCondition('SK', 'or value')
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals([
+            '#1' => 'PK',
+            '#2' => 'SK'
+        ], $query['ExpressionAttributeNames']);
+
+        $this->assertEquals([
+            ':1' => [
+                'S' => 'demo'
+            ],
+            ':2' => [
+                'S' => 'or value'
+            ]
+        ], $query['ExpressionAttributeValues']);
+
+        $this->assertEquals('#1 = :1 or #2 = :2', $query['ConditionExpression']);
+    }
+
+    /**
+    * @test
+    **/
+    function it_add_attribute_exists_condition()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->conditionAttributeExists('PK')
+            ->conditionAttributeExists('LK')
+            ->orConditionAttributeExists('SK')
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals('attribute_exists(#1) and attribute_exists(#2) or attribute_exists(#3)', $query['ConditionExpression']);
+    }
+
+    /**
+    * @test
+    **/
+    function it_add_attribute_not_exists_condition()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->conditionAttributeNotExists('PK')
+            ->conditionAttributeNotExists('LK')
+            ->orConditionAttributeNotExists('SK')
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals('attribute_not_exists(#1) and attribute_not_exists(#2) or attribute_not_exists(#3)', $query['ConditionExpression']);
+    }
+
+    /**
+    * @test
+    **/
+    function it_add_attribute_type_condition()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->conditionAttributeType('PK', 'S')
+            ->orConditionAttributeType('LK', 'S')
+            ->conditionAttributeType('SK', 'S')
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals('attribute_type(#1, :1) or attribute_type(#2, :1) and attribute_type(#3, :1)', $query['ConditionExpression']);
+    }
+
+    /**
+    * @test
+    **/
+    function it_add_begins_with_condition()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->conditionBeginsWith('PK', 'S')
+            ->orConditionBeginsWith('LK', 'S')
+            ->conditionBeginsWith('SK', 'S')
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals('begins_with(#1, :1) or begins_with(#2, :1) and begins_with(#3, :1)', $query['ConditionExpression']);
+    }
+
+    /**
+    * @test
+    **/
+    function it_add_contains_condition()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->conditionContains('PK', 'S')
+            ->orConditionContains('LK', 'S')
+            ->conditionContains('SK', 'S')
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals('contains(#1, :1) or contains(#2, :1) and contains(#3, :1)', $query['ConditionExpression']);
+    }
+
+    /**
+    * @test
+    **/
+    function it_add_size_condition()
+    {
+        $query = $this->getBuilder()->from('users')
+            ->conditionSize('PK', 64000)
+            ->orConditionSize('LK', '>', 2)
+            ->conditionSize('SK', 3)
+            ->putItem(['hello' => 'word']);
+
+        $this->assertEquals('size(#1) = :1 or size(#2) > :2 and size(#3) = :3', $query['ConditionExpression']);
+    }
 }

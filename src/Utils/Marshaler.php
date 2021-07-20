@@ -38,10 +38,11 @@ class Marshaler
      * Un Marshal Item
      *
      * @param $item
+     * @param bool $mapAsObject
      * @return array
      */
-    public static function unMarshalItem($item)
+    public static function unMarshalItem($item, bool $mapAsObject = true)
     {
-        return self::getInstance()->unmarshalItem($item, true);
+        return self::getInstance()->unmarshalItem($item, $mapAsObject);
     }
 }

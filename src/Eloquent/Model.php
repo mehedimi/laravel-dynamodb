@@ -12,6 +12,7 @@ use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
  * @method static Builder key($primaryKey, $sortKey = null)
  * @method static Builder select(...$attributes)
  * @method static Model find($key, $column = [])
+ * @method static Model findOrFail($key, $column = [])
  * @method static Model create(array $attributes)
  *
  * @see  \Mehedi\LaravelDynamoDB\Eloquent\Builder
@@ -43,18 +44,19 @@ abstract class Model extends BaseModel
     /**
      * Get primary key of a model
      *
-     * @return array|mixed
+     * @return array
      */
     public function getKey()
     {
-        if (is_null($this->sortKey)) {
-            return $this->getAttribute($this->primaryKey);
+        $key = [
+            $this->primaryKey => $this->getAttribute($this->primaryKey)
+        ];
+
+        if (! is_null($this->sortKey)) {
+            $key[$this->sortKey] = $this->getAttribute($this->sortKey);
         }
 
-        return [
-            $this->primaryKey => $this->getAttribute($this->primaryKey),
-            $this->sortKey => $this->getAttribute($this->sortKey)
-        ];
+        return $key;
     }
 
     /**
@@ -191,7 +193,8 @@ abstract class Model extends BaseModel
             return true;
         }
 
-        $response = $query->insert($attributes);
+
+        $response = $query->key(...array_values($this->getKey()))->insert($attributes);
 
         // We will go ahead and set the exists property to true, so that it is set when
         // the created event is fired, just in case the developer tries to update it
@@ -249,7 +252,9 @@ abstract class Model extends BaseModel
      */
     protected function setKeysForSaveQuery($query): Builder
     {
-        $query->key($this->getKey());
+        $key = (array) $this->getKey();
+
+        $query->key(...array_values($key));
 
         return $query;
     }

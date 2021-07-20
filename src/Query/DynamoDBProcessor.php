@@ -6,7 +6,7 @@ use Aws\Result;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\Utils\Marshaler;
 
-class Processor
+class DynamoDBProcessor
 {
     /**
      * Process multiple items
@@ -22,7 +22,9 @@ class Processor
             return Marshaler::unMarshalItem($item);
         }, $data['Items']);
 
-        $lastEvaluatedKey = array_key_exists('LastEvaluatedKey', $data) ? Marshaler::unMarshalItem($data['LastEvaluatedKey']) : null;
+        $lastEvaluatedKey = array_key_exists('LastEvaluatedKey', $data)
+            ? Marshaler::unMarshalItem($data['LastEvaluatedKey'], false)
+            : null;
 
         return (new ItemCollection($data['Items']))
             ->setItemsCount($data['ScannedCount'])
@@ -67,6 +69,12 @@ class Processor
      */
     public function processAffectedOperation(Result $result): array
     {
-        return Marshaler::unMarshalItem($result->toArray());
+        $data = $result->toArray();
+
+        if (array_key_exists('Attributes', $data)) {
+            $data['Attributes'] = Marshaler::unMarshalItem($data['Attributes']);
+        }
+
+        return $data;
     }
 }

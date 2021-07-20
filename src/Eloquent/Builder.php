@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * Class Builder
  *
  * @method static array toArray()
- * @method Builder inTesting()
  * @method insert(array $attributes)
  * @method Builder keyCondition(string $column, $operator, $value = null)
  * @method Builder keyConditionBetween(string $column, string $from, string $to)
@@ -76,14 +75,7 @@ class Builder
 
         $item = $this->query->from($this->model->getTable())->find();
 
-
-        if (is_null($item)) {
-            return null;
-        }
-
-        $this->model->newFromBuilder($item);
-
-        return $this->model;
+        return array_key_exists('Item', $item) ? $this->model->newFromBuilder($item['Item']) : null;
     }
 
     /**
@@ -149,7 +141,7 @@ class Builder
     {
         $this->checkFetchMode($mode);
 
-        return call_user_func([$this, $mode], [$columns]);
+        return call_user_func_array([$this, $mode], [$columns]);
     }
 
     /**
@@ -276,9 +268,20 @@ class Builder
         if (! is_null($sortKey)) {
             $key[$this->model->getSortKeyName()] = $sortKey;
         }
+
         $this->query->key($key);
 
         return $this;
+    }
+
+    /**
+     * Get the connection
+     *
+     * @return \Illuminate\Database\ConnectionInterface|\Mehedi\LaravelDynamoDB\DynamoDBConnection
+     */
+    public function getConnection()
+    {
+        return $this->query->getConnection();
     }
 
     /**

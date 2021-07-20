@@ -14,19 +14,22 @@ trait BuildQueries
      * @param string $mode
      * @return bool
      */
-    protected function chunk(int $count, callable $callback, $mode = FetchMode::QUERY)
+    public function chunk(int $count, callable $callback, string $mode = FetchMode::QUERY): bool
     {
         $this->limit($count);
+
         $page = 1;
 
         do {
             $results = $this->get([], $mode);
 
-            if (call_user_func($callback, [$results, $page]) === false) {
+            if (call_user_func_array($callback, [$results, $page]) === false) {
                 return false;
             }
 
-            $hasNextItems = $results->hasNextItems();
+            if ($hasNextItems = $results->hasNextItems()) {
+                $this->exclusiveStartKey($results->getLastEvaluatedKey());
+            }
 
             unset($results);
 

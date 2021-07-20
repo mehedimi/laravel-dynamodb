@@ -7,7 +7,7 @@ use Mockery as m;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 use Mehedi\LaravelDynamoDB\Query\Builder;
 use Mehedi\LaravelDynamoDB\Query\DynamoDBGrammar;
-use Mehedi\LaravelDynamoDB\Query\Processor;
+use Mehedi\LaravelDynamoDB\Query\DynamoDBProcessor;
 
 trait MockHelpers
 {
@@ -25,7 +25,7 @@ trait MockHelpers
     protected function getBuilder()
     {
         $grammar = new DynamoDBGrammar;
-        $processor = m::mock(Processor::class);
+        $processor = new FakeProcessor();
 
         return new Builder($this->getConnection(), $grammar, $processor);
     }
@@ -33,7 +33,7 @@ trait MockHelpers
     protected function getDynamoDBBuilder()
     {
         $grammar = new DynamoDBGrammar();
-        $processor = m::mock(Processor::class);
+        $processor = m::mock(DynamoDBProcessor::class);
 
         return new Builder(m::mock(ConnectionInterface::class), $grammar, $processor);
     }
