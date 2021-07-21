@@ -3,6 +3,9 @@
 namespace Mehedi\LaravelDynamoDB\Query;
 
 use Illuminate\Database\Grammar as BaseGrammar;
+use Mehedi\LaravelDynamoDB\Contracts\BatchRequest;
+use Mehedi\LaravelDynamoDB\Query\Batch\Get;
+use Mehedi\LaravelDynamoDB\Query\Batch\Write;
 use Mehedi\LaravelDynamoDB\Utils\Marshaler;
 
 class DynamoDBGrammar extends BaseGrammar
@@ -155,6 +158,66 @@ class DynamoDBGrammar extends BaseGrammar
         }
 
         return $query;
+    }
+
+    /**
+     * Compile batch write item
+     *
+     * @param Builder $builder
+     * @return array|\array[][]
+     */
+    public function compileBatchWriteItem(Builder $builder)
+    {
+        return array_map(function (Write $batch) {
+            $query = [
+                'RequestItems' => []
+            ];
+
+            foreach ($batch->getRequests() as $table => $requests) {
+                $query['RequestItems'] = [
+                    $this->getTablePrefix().$table => array_map(function (BatchRequest $request) {
+                        return [
+                            basename(str_replace('\\', '/', get_class($request))) => $request->toArray()
+                        ];
+                    }, $requests)
+                ];
+            }
+
+            return $query;
+        }, $builder->batchRequests);
+    }
+
+    /**
+     * Compile batch get item request
+     *
+     * @param Builder $builder
+     * @return array
+     */
+    public function compileBatchGetItem(Builder $builder)
+    {
+        return array_map(function (Get $batch) use($builder) {
+            $query = [
+                'RequestItems' => []
+            ];
+
+            foreach ($batch->keys() as $table => $keys) {
+                $tableWithPrefix = $this->getTablePrefix().$table;
+
+                $query['RequestItems'] = [
+                    $tableWithPrefix => []
+                ];
+
+                $this->compileExpression($builder->expression, $query['RequestItems'][$tableWithPrefix]);
+                $this->compileProjectionExpression($builder->projectionExpression, $query['RequestItems'][$tableWithPrefix]);
+                $this->compileConsistentRead($builder->consistentRead, $query['RequestItems'][$tableWithPrefix]);
+
+                $query['RequestItems'][$tableWithPrefix]['Keys'] = array_map(function ($key) {
+                    return Marshaler::marshalItem($key);
+                }, $keys);
+            }
+
+            return $query;
+        }, $builder->batchRequests);
     }
 
     /**

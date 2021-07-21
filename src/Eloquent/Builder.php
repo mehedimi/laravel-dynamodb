@@ -46,7 +46,7 @@ class Builder
      * @var string[]
      */
     protected $passthru = [
-        'toArray', 'insert'
+        'toArray', 'insert', 'putItemBatch', 'deleteItemBatch'
     ];
 
     public function __construct(QueryBuilder $query)
@@ -114,6 +114,89 @@ class Builder
     }
 
     /**
+     * Get the first record matching the attributes or create it.
+     *
+     * @param array|string $key
+     * @param array $values
+     * @return Model
+     */
+    public function firstOrCreate($key, array $values = []): Model
+    {
+        $model = $this->firstOrNew($key, $values);
+
+        if ($model->exists) {
+            return $model;
+        }
+
+        $model->save();
+
+        return $model;
+    }
+
+    /**
+     * Get the first record matching the attributes or instantiate it.
+     *
+     * @param array $key
+     * @param array $values
+     * @return Model
+     */
+    public function firstOrNew(array $key, array $values = [])
+    {
+        $model = $this->find($key);
+
+        return is_null($model) ? $this->newModelInstance($values)->setKey($key) : $model;
+    }
+
+    /**
+     * Create or update a record matching the attributes, and fill it with values.
+     *
+     * @param array $key
+     * @param array $values
+     * @return Model
+     */
+    public function updateOrCreate(array $key, array $values = [])
+    {
+        $model = $this->firstOrNew($key, $values);
+
+        $model->exists ? $model->update($values) : $model->save();
+
+        return $model;
+    }
+
+    /**
+     * Alias of getItemBatch
+     *
+     * @param $keys
+     * @param int $chunkSize
+     * @alias getItemBatch()
+     * @return \Illuminate\Support\Collection
+     */
+    public function findMany($keys, int $chunkSize = 100)
+    {
+        return $this->getItemBatch($keys, $chunkSize);
+    }
+
+    /**
+     * Find many models in a single request
+     *
+     * @param $keys
+     * @param int $chunkSize
+     * @return \Illuminate\Support\Collection
+     */
+    public function getItemBatch($keys, int $chunkSize = 100)
+    {
+        $primaryKey = $this->model->getKeysName();
+
+        $keys = array_map(function ($key) use ($primaryKey) {
+            return array_combine($primaryKey, $key);
+        }, $keys);
+
+        return $this->query->getItemBatch($keys, $chunkSize)->transform(function ($item) {
+            return $this->model->newFromBuilder($item);
+        });
+    }
+
+    /**
      * Query items from database using query mode
      *
      * @param array $columns
@@ -160,9 +243,9 @@ class Builder
      * Save a new model and return the instance.
      *
      * @param  array  $attributes
-     * @return Model|$this
+     * @return Model
      */
-    public function create(array $attributes = [])
+    public function create(array $attributes = []): Model
     {
         return tap($this->newModelInstance($attributes), function (Model $instance) {
             $instance->save();
@@ -191,7 +274,6 @@ class Builder
         return $this->query->update($values);
     }
 
-
     /**
      * Query items from database using scan mode
      *
@@ -213,7 +295,7 @@ class Builder
      * Create a new instance of the model being queried.
      *
      * @param array $attributes
-     * @return \Illuminate\Database\Eloquent\Model|static
+     * @return Model
      */
     public function newModelInstance(array $attributes = [])
     {

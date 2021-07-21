@@ -15,4 +15,14 @@ class FakeProcessor extends Processor
     {
         return $result;
     }
+
+    public function processBatchWriteItems($result)
+    {
+        return $result;
+    }
+
+    public function processBatchGetItems($result)
+    {
+        return $result;
+    }
 }

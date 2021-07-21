@@ -3,6 +3,8 @@
 namespace Mehedi\LaravelDynamoDB\Eloquent;
 
 use Illuminate\Database\Eloquent\Model as BaseModel;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 
 /**
@@ -14,6 +16,13 @@ use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
  * @method static Model find($key, $column = [])
  * @method static Model findOrFail($key, $column = [])
  * @method static Model create(array $attributes)
+ * @method static Model firstOrCreate(array $key, $values = [])
+ * @method static Model firstOrNew(array $key, $values = [])
+ * @method static Model updateOrCreate(array $key, $values = [])
+ * @method static array putItemBatch(array $items, $chunkSize = 25)
+ * @method static array deleteItemBatch(array $keys, $chunkSize = 25)
+ * @method static Collection getItemBatch(array $keys, $chunkSize = 25)
+ * @method static Collection findMany(array $keys, $chunkSize = 25)
  *
  * @see  \Mehedi\LaravelDynamoDB\Eloquent\Builder
  */
@@ -252,7 +261,7 @@ abstract class Model extends BaseModel
      */
     protected function setKeysForSaveQuery($query): Builder
     {
-        $key = (array) $this->getKey();
+        $key = $this->getKey();
 
         $query->key(...array_values($key));
 
@@ -290,6 +299,54 @@ abstract class Model extends BaseModel
         $this->syncOriginal();
 
         return $this;
+    }
+
+    /**
+     * Clone the model into a new, non-existing instance.
+     *
+     * @param array|null $except
+     * @return Model
+     */
+    public function replicate(array $except = null)
+    {
+        $replicate = parent::replicate($except);
+
+        if ($this->sortKey) {
+            Arr::forget($replicate->attributes, $this->sortKey);
+        }
+
+        return $replicate;
+    }
+
+    /**
+     * Set key on the model instance
+     *
+     * @param $key
+     * @return Model
+     */
+    public function setKey($key)
+    {
+        $key = (array) $key;
+
+        $this->attributes += $this->key(...$key)->query->key;
+
+        return $this;
+    }
+
+    /**
+     * Get only keys name
+     *
+     * @return array
+     */
+    public function getKeysName()
+    {
+        $primaryKey = [$this->getKeyName()];
+
+        if ($sortKey = $this->getSortKeyName()) {
+            $primaryKey[] = $sortKey;
+        }
+
+        return $primaryKey;
     }
 
 

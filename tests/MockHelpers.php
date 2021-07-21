@@ -16,6 +16,7 @@ trait MockHelpers
         $connection = m::mock(DynamoDBConnection::class);
         $connection->shouldReceive('getDatabaseName')
             ->andReturn('database');
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
         $connection->shouldReceive('getClient')
             ->andReturn(new FakeClient());
 

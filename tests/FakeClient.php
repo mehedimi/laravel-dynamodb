@@ -22,4 +22,14 @@ class FakeClient
     {
         return $query;
     }
+
+    public function batchGetItem($query)
+    {
+        return $query;
+    }
+
+    public function batchWriteItem($query)
+    {
+        return $query;
+    }
 }

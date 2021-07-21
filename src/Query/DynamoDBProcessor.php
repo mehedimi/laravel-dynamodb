@@ -27,7 +27,7 @@ class DynamoDBProcessor
             : null;
 
         return (new ItemCollection($data['Items']))
-            ->setItemsCount($data['ScannedCount'])
+            ->setScannedCount($data['ScannedCount'])
             ->setItemsCount($data['Count'])
             ->setMetaData($data['@metadata'])
             ->setLastEvaluatedKey($lastEvaluatedKey);
@@ -76,5 +76,44 @@ class DynamoDBProcessor
         }
 
         return $data;
+    }
+
+    /**
+     * Process batch write items response
+     *
+     * @param array $results
+     * @return array
+     */
+    public function processBatchWriteItems(array $results)
+    {
+        $responses = [];
+
+        foreach ($results as $result) {
+            $responses = array_merge_recursive($responses, $result->toArray());
+        }
+
+        return $responses;
+    }
+
+    /**
+     * Process batch get item response
+     *
+     * @param array $results
+     * @param $from
+     * @param $prefix
+     * @return \Illuminate\Support\Collection
+     */
+    public function processBatchGetItems(array $results, $from, $prefix)
+    {
+        $collection = new \Illuminate\Support\Collection();
+
+        foreach ($results as $result) {
+            $collection = $collection->concat(
+                array_map(
+                    [Marshaler::class, 'unMarshalItem'], $result->toArray()['Responses'][$prefix.$from]
+                )
+            );
+        }
+        return $collection;
     }
 }

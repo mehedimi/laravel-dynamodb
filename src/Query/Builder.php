@@ -10,6 +10,10 @@ use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
+use Mehedi\LaravelDynamoDB\Query\Batch\Get;
+use Mehedi\LaravelDynamoDB\Query\Batch\Write;
+use Mehedi\LaravelDynamoDB\Query\Batch\DeleteRequest;
+use Mehedi\LaravelDynamoDB\Query\Batch\PutRequest;
 
 /**
  * Class Builder
@@ -30,6 +34,11 @@ use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 class Builder
 {
     use BuildQueries;
+
+    /**
+     * @var array $batchRequests
+     */
+    public $batchRequests;
 
     /**
      * The database connection instance.
@@ -413,6 +422,37 @@ class Builder
     }
 
     /**
+     * Delete items using batch request
+     *
+     * @param $keys
+     * @param int $chunkSize
+     * @return array
+     */
+    public function deleteItemBatch($keys, $chunkSize = 25)
+    {
+        $this->batchRequests = [];
+        $response = [];
+
+        foreach (array_chunk($keys, $chunkSize) as $keyChunk) {
+            $this->batchRequests[] = Write::make()
+                ->addMany(
+                    $this->from,
+                    array_map(function ($key) {
+                        return DeleteRequest::make($key);
+                    }, $keyChunk)
+                );
+        }
+
+        $queries = $this->grammar->compileBatchWriteItem($this);
+
+        foreach ($queries as $query) {
+            $response[] = $this->connection->getClient()->batchWriteItem($query);
+        }
+
+        return $this->processor->processBatchWriteItems($response);
+    }
+
+    /**
      * Add exclusive start
      *
      * @param $key
@@ -522,6 +562,18 @@ class Builder
     }
 
     /**
+     * Find multiple item using many keys
+     *
+     * @param array $keys
+     * @param int $chunkSize
+     * @return \Illuminate\Support\Collection
+     */
+    public function findMany(array $keys, $chunkSize = 100)
+    {
+        return $this->getItemBatch($keys, $chunkSize);
+    }
+
+    /**
      * Get the database connection instance.
      *
      * @return \Illuminate\Database\ConnectionInterface
@@ -556,6 +608,32 @@ class Builder
     public function getItem()
     {
         return $this->find();
+    }
+
+    /**
+     * Get item batch
+     *
+     * @param $keys
+     * @param int $chunkSize
+     * @return \Illuminate\Support\Collection
+     */
+    public function getItemBatch($keys, $chunkSize = 100)
+    {
+        $responses = [];
+        $this->batchRequests = [];
+
+        foreach (array_chunk($keys, $chunkSize) as $keyChunk) {
+            $this->batchRequests[] = Get::make()
+                ->addMany($this->from, $keyChunk);
+        }
+
+        $queries = $this->grammar->compileBatchGetItem($this);
+
+        foreach ($queries as $query) {
+            $responses[] = $this->connection->getClient()->batchGetItem($query);
+        }
+
+        return $this->processor->processBatchGetItems($responses, $this->from, $this->connection->getTablePrefix());
     }
 
     /**
@@ -716,10 +794,10 @@ class Builder
     /**
      * Put item
      *
-     * @param $item
+     * @param array $item
      * @return array|false
      */
-    public function putItem($item)
+    public function putItem(array $item)
     {
         if (empty($item)) {
             return false;
@@ -727,7 +805,7 @@ class Builder
 
         $this->item = $item;
 
-        if (!empty($this->key)) {
+        if (! empty($this->key)) {
             $this->item += $this->key;
         }
 
@@ -736,6 +814,38 @@ class Builder
         $response = $this->connection->getClient()->putItem($query);
 
         return $this->processor->processAffectedOperation($response);
+    }
+
+    /**
+     * Put item in a batch request
+     *
+     * @param array $items
+     * @param int $chunk
+     * @return array
+     */
+    public function putItemBatch(array $items, $chunk = 25)
+    {
+        $this->batchRequests = [];
+
+        foreach (array_chunk($items, $chunk) as $itemChunk) {
+            $this->batchRequests[] = Write::make()
+                ->addMany(
+                    $this->from,
+                    array_map(function ($item){
+                        return PutRequest::make($item);
+                    }, $itemChunk)
+                );
+        }
+
+        $response = [];
+
+        $requests = $this->grammar->compileBatchWriteItem($this);
+
+        foreach ($requests as $request) {
+            $response[] = $this->connection->getClient()->batchWriteItem($request);
+        }
+
+        return $this->processor->processBatchWriteItems($response);
     }
 
     /**
