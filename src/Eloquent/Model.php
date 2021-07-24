@@ -23,6 +23,7 @@ use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
  * @method static array deleteItemBatch(array $keys, $chunkSize = 25)
  * @method static Collection getItemBatch(array $keys, $chunkSize = 25)
  * @method static Collection findMany(array $keys, $chunkSize = 25)
+ * @method static \Mehedi\LaravelDynamoDB\Pagination\CursorPaginator cursorPaginate(int $perPage, $columns = [], $cursorName = 'cursor', $cursor = null, $mode = \Mehedi\LaravelDynamoDB\Query\FetchMode::QUERY)
  *
  * @see  \Mehedi\LaravelDynamoDB\Eloquent\Builder
  */

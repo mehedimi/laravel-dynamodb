@@ -55,6 +55,24 @@ class Builder
     }
 
     /**
+     * Get a paginator only supporting simple next link.
+     *
+     * @param int $perPage
+     * @param array $columns
+     * @param string $cursorName
+     * @param null $cursor
+     * @param string $mode
+     * @return \Mehedi\LaravelDynamoDB\Pagination\CursorPaginator
+     */
+    public function cursorPaginate(int $perPage, array $columns = [], $cursorName = 'cursor', $cursor = null, $mode = FetchMode::QUERY)
+    {
+        return $this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor, $mode)
+            ->through(function ($item) {
+                 return $this->model->newFromBuilder($item);
+            });
+    }
+
+    /**
      * Find a model by its primary key.
      *
      * @param null $key

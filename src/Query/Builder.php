@@ -5,11 +5,14 @@ namespace Mehedi\LaravelDynamoDB\Query;
 use BadMethodCallException;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Processors\Processor;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
+use Mehedi\LaravelDynamoDB\Pagination\CursorPaginator;
+use Mehedi\LaravelDynamoDB\Pagination\CursorStorage;
 use Mehedi\LaravelDynamoDB\Query\Batch\Get;
 use Mehedi\LaravelDynamoDB\Query\Batch\Write;
 use Mehedi\LaravelDynamoDB\Query\Batch\DeleteRequest;
@@ -377,6 +380,40 @@ class Builder
         $this->conditionExpressions[] = [sprintf('size(%s) %s %s', $column, $operator, $value), $type];
 
         return $this;
+    }
+
+    /**
+     * Get a paginator only supporting simple next link.
+     *
+     * @param int $perPage
+     * @param array $columns
+     * @param string $cursorName
+     * @param null $cursor
+     * @param string $mode
+     * @return CursorPaginator
+     */
+    public function cursorPaginate(int $perPage, array $columns = [], $cursorName = 'cursor', $cursor = null, $mode = FetchMode::QUERY)
+    {
+        /** @var Cursor|null $cursor */
+        $cursor = $cursor ?: \Illuminate\Pagination\CursorPaginator::resolveCurrentCursor($cursorName);
+
+        if ($cursor) {
+            dump($cursor->toArray());
+        }
+
+        $cursor = CursorStorage::make($cursor);
+
+        if (! empty($columns)) {
+            $this->select(...$columns);
+        }
+
+        if ($cursor->hasNextCursor()) {
+            $this->exclusiveStartKey($cursor->nextCursor());
+        }
+
+        $items = $this->limit($perPage)->fetch($mode);
+
+        return new CursorPaginator($items, $perPage, $cursor->cursor());
     }
 
     /**

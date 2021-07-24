@@ -19,7 +19,11 @@
     },
     "autoload": {
         "psr-4": {
-            "Mehedi\\LaravelDynamoDB\\": "src/",
+            "Mehedi\\LaravelDynamoDB\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
             "Mehedi\\LaravelDynamoDB\\Tests\\": "tests/"
         }
     },
