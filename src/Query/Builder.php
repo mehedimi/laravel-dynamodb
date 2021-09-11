@@ -704,6 +704,19 @@ class Builder extends \Illuminate\Database\Query\Builder
     }
 
     /**
+     * Set different index
+     *
+     * @param $indexName
+     * @return $this
+     */
+    public function index($indexName)
+    {
+        $this->indexName = $indexName;
+
+        return $this;
+    }
+
+    /**
      * Insert or replace an item
      *
      * @param array $item

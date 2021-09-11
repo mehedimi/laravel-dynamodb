@@ -18,7 +18,7 @@ trait BuildQueries
         $page = 1;
 
         do {
-            $results = $this->get([]);
+            $results = $this->get();
 
             if (call_user_func_array($callback, [$results, $page]) === false) {
                 return false;
