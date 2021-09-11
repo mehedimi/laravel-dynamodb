@@ -8,7 +8,6 @@ use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
 use Mehedi\LaravelDynamoDB\Query\Builder as QueryBuilder;
 use Mehedi\LaravelDynamoDB\Query\FetchMode;
-use Mehedi\LaravelDynamoDB\Query\ReturnValues;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -19,10 +18,11 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
  * @method Builder keyCondition(string $column, $operator, $value = null)
  * @method Builder keyConditionBetween(string $column, string $from, string $to)
  * @method Builder keyConditionBeginsWith(string $column, string $value)
+ * @method Builder getQuery()
  *
  * @see  \Mehedi\LaravelDynamoDB\Query\Builder
  */
-class Builder
+class Builder extends \Illuminate\Database\Eloquent\Builder
 {
     use ForwardsCalls, BuildQueries;
 
@@ -49,11 +49,6 @@ class Builder
         'toArray', 'insert', 'putItemBatch', 'deleteItemBatch'
     ];
 
-    public function __construct(QueryBuilder $query)
-    {
-        $this->query = $query;
-    }
-
     /**
      * Get a paginator only supporting simple next link.
      *
@@ -61,12 +56,11 @@ class Builder
      * @param array $columns
      * @param string $cursorName
      * @param null $cursor
-     * @param string $mode
      * @return \Mehedi\LaravelDynamoDB\Pagination\CursorPaginator
      */
-    public function cursorPaginate(int $perPage, array $columns = [], $cursorName = 'cursor', $cursor = null, $mode = FetchMode::QUERY)
+    public function cursorPaginate($perPage = null, $columns = [], $cursorName = 'cursor', $cursor = null)
     {
-        return $this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor, $mode)
+        return $this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor)
             ->through(function ($item) {
                  return $this->model->newFromBuilder($item);
             });
@@ -79,7 +73,7 @@ class Builder
      * @param array $columns
      * @return Model|null
      */
-    public function find($key, array $columns = [])
+    public function find($key, $columns = [])
     {
         if (is_string($key)) {
             $this->key($key);
@@ -88,10 +82,10 @@ class Builder
         }
 
         if (! empty($columns)) {
-            $this->query->select(...$columns);
+            $this->query->select($columns);
         }
 
-        $item = $this->query->from($this->model->getTable())->find();
+        $item = $this->query->from($this->model->getTable())->getItem();
 
         return array_key_exists('Item', $item) ? $this->model->newFromBuilder($item['Item']) : null;
     }
@@ -105,7 +99,7 @@ class Builder
      *
      * @throws ModelNotFoundException
      */
-    public function findOrFail($key, array $columns = [])
+    public function findOrFail($key, $columns = [])
     {
         $model = $this->find($key, $columns);
 
@@ -121,12 +115,11 @@ class Builder
      *  Get the first item
      *
      * @param string[] $columns
-     * @param string $mode
      * @return Model|null
      */
-    public function first(array $columns = ['*'], string $mode = FetchMode::QUERY): ?Model
+    public function first($columns = []): ?Model
     {
-        $item = $this->query->first($columns, $mode);
+        $item = $this->query->first($columns);
 
         return is_null($item) ? null : $this->model->newFromBuilder($item);
     }
@@ -138,7 +131,7 @@ class Builder
      * @param array $values
      * @return Model
      */
-    public function firstOrCreate($key, array $values = []): Model
+    public function firstOrCreate(array $key = [], array $values = []): Model
     {
         $model = $this->firstOrNew($key, $values);
 
@@ -158,7 +151,7 @@ class Builder
      * @param array $values
      * @return Model
      */
-    public function firstOrNew(array $key, array $values = [])
+    public function firstOrNew(array $key = [], array $values = [])
     {
         $model = $this->find($key);
 
@@ -172,7 +165,7 @@ class Builder
      * @param array $values
      * @return Model
      */
-    public function updateOrCreate(array $key, array $values = [])
+    public function updateOrCreate(array $key = [], array $values = [])
     {
         $model = $this->firstOrNew($key, $values);
 
@@ -185,23 +178,26 @@ class Builder
      * Alias of getItemBatch
      *
      * @param $keys
-     * @param int $chunkSize
-     * @alias getItemBatch()
+     * @param array $columns
      * @return \Illuminate\Support\Collection
+     * @alias getItemBatch()
      */
-    public function findMany($keys, int $chunkSize = 100)
+    public function findMany($keys, $columns = [])
     {
-        return $this->getItemBatch($keys, $chunkSize);
+        if (!empty($columns)) {
+            $this->select($columns);
+        }
+
+        return $this->getItemBatch($keys);
     }
 
     /**
      * Find many models in a single request
      *
      * @param $keys
-     * @param int $chunkSize
      * @return \Illuminate\Support\Collection
      */
-    public function getItemBatch($keys, int $chunkSize = 100)
+    public function getItemBatch($keys)
     {
         $primaryKey = $this->model->getKeysName();
 
@@ -209,7 +205,7 @@ class Builder
             return array_combine($primaryKey, $key);
         }, $keys);
 
-        return $this->query->getItemBatch($keys, $chunkSize)->transform(function ($item) {
+        return $this->query->getItemBatch($keys, $this->readChunkSize)->transform(function ($item) {
             return $this->model->newFromBuilder($item);
         });
     }
@@ -235,14 +231,13 @@ class Builder
      * Get items collection
      *
      * @param array $columns
-     * @param string $mode
      * @return ItemCollection
      */
-    public function get(array $columns = [], string $mode = FetchMode::QUERY)
+    public function get($columns = [])
     {
-        $this->checkFetchMode($mode);
+        $this->checkFetchMode($this->query->fetchMode);
 
-        return call_user_func_array([$this, $mode], [$columns]);
+        return call_user_func_array([$this, $this->query->fetchMode], [$columns]);
     }
 
     /**
@@ -271,23 +266,12 @@ class Builder
     }
 
     /**
-     * Get the query builder instance
-     *
-     * @return QueryBuilder
-     */
-    public function getQuery()
-    {
-        return $this->query;
-    }
-
-    /**
      * Update model
      *
      * @param array $values
-     * @param string $returnValues
      * @return array
      */
-    public function update(array $values, string $returnValues = ReturnValues::NONE): array
+    public function update(array $values)
     {
         return $this->query->update($values);
     }
@@ -307,43 +291,6 @@ class Builder
         return $this->query->scan()->transform(function ($data) {
             return $this->model->newFromBuilder($data);
         });
-    }
-
-    /**
-     * Create a new instance of the model being queried.
-     *
-     * @param array $attributes
-     * @return Model
-     */
-    public function newModelInstance(array $attributes = [])
-    {
-        return $this->model->newInstance($attributes)->setConnection(
-            $this->query->connection->getName()
-        );
-    }
-
-    /**
-     * Set a model instance for the model being queried.
-     *
-     * @param  Model  $model
-     * @return $this
-     */
-    public function setModel(Model $model): Builder
-    {
-        $this->model = $model;
-        $this->query->from($model->getTable());
-
-        return $this;
-    }
-
-    /**
-     * Get the model instance being queried.
-     *
-     * @return Model
-     */
-    public function getModel(): Model
-    {
-        return $this->model;
     }
 
     /**
@@ -370,34 +317,6 @@ class Builder
         }
 
         $this->query->key($key);
-
-        return $this;
-    }
-
-    /**
-     * Get the connection
-     *
-     * @return \Illuminate\Database\ConnectionInterface|\Mehedi\LaravelDynamoDB\DynamoDBConnection
-     */
-    public function getConnection()
-    {
-        return $this->query->getConnection();
-    }
-
-    /**
-     * Handle non existence method calling
-     *
-     * @param $method
-     * @param $parameters
-     * @return $this|false|mixed
-     */
-    public function __call($method, $parameters)
-    {
-        if (in_array($method, $this->passthru)) {
-            return call_user_func_array([$this->query, $method], $parameters);
-        }
-
-        $this->forwardCallTo($this->query, $method, $parameters);
 
         return $this;
     }

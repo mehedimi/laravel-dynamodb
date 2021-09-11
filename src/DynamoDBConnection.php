@@ -42,6 +42,8 @@ class DynamoDBConnection extends Connection
 
     public function __construct($config)
     {
+        parent::__construct(null);
+
         $this->config = $config;
         $this->makeClient($config);
 
@@ -166,5 +168,13 @@ class DynamoDBConnection extends Connection
     public function raw($value): RawExpression
     {
         return new RawExpression($value);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function disconnect()
+    {
+        $this->setClient(null);
     }
 }

@@ -10,7 +10,6 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Mehedi\LaravelDynamoDB\Collections\ItemCollection;
 use Mehedi\LaravelDynamoDB\Concerns\BuildQueries;
-use Mehedi\LaravelDynamoDB\DynamoDBConnection;
 use Mehedi\LaravelDynamoDB\Pagination\CursorPaginator;
 use Mehedi\LaravelDynamoDB\Pagination\CursorStorage;
 use Mehedi\LaravelDynamoDB\Query\Batch\Get;
@@ -31,10 +30,12 @@ use Mehedi\LaravelDynamoDB\Query\Batch\PutRequest;
  * @method Builder orConditionBeginsWith($path, $substr)
  * @method Builder conditionContains($path, $operand)
  * @method Builder orConditionContains($path, $operand)
+ * @property DynamoDBGrammar $grammar
+ * @property DynamoDBProcessor $processor
  *
  * @package Mehedi\LaravelDynamoDB\Query
  */
-class Builder
+class Builder extends \Illuminate\Database\Query\Builder
 {
     use BuildQueries;
 
@@ -44,11 +45,18 @@ class Builder
     public $batchRequests;
 
     /**
-     * The database connection instance.
+     * Batch read chunk site
      *
-     * @var DynamoDBConnection
+     * @var int $readChunkSize
      */
-    public $connection;
+    protected $batchReadChunkSize = 100;
+
+    /**
+     * Batch write chunk size
+     *
+     * @var int $writeChunkSize
+     */
+    protected $batchWriteChunkSize = 25;
 
     /**
      * Determines the read consistency model
@@ -92,32 +100,19 @@ class Builder
     public $expression;
 
     /**
+     * Fetching mode query|scan
+     *
+     * @var string
+     */
+    public $fetchMode = FetchMode::QUERY;
+
+    /**
      * Filter expressions
      *
      * @var array $filterExpressions
      */
     public $filterExpressions = [];
 
-    /**
-     * Table name
-     *
-     * @var string $table
-     */
-    public $from;
-
-    /**
-     * The database query grammar instance.
-     *
-     * @var DynamoDBGrammar
-     */
-    public $grammar;
-
-    /**
-     * The database query post processor instance.
-     *
-     * @var DynamoDBProcessor
-     */
-    public $processor;
     /**
      * The name of an index to query.
      *
@@ -133,7 +128,7 @@ class Builder
     public $item;
 
     /**
-     * Key attribute of a item
+     * Key attribute of an item
      *
      * @var array $key
      */
@@ -145,13 +140,6 @@ class Builder
      * @var array $keyConditionExpressions
      */
     public $keyConditionExpressions = [];
-
-    /**
-     * The maximum number of items to evaluate
-     *
-     * @var null|numeric $limit
-     */
-    public $limit;
 
     /**
      * Projection expression
@@ -389,17 +377,12 @@ class Builder
      * @param array $columns
      * @param string $cursorName
      * @param null $cursor
-     * @param string $mode
      * @return CursorPaginator
      */
-    public function cursorPaginate(int $perPage, array $columns = [], $cursorName = 'cursor', $cursor = null, $mode = FetchMode::QUERY)
+    public function cursorPaginate($perPage = 15, $columns = [], $cursorName = 'cursor', $cursor = null)
     {
         /** @var Cursor|null $cursor */
         $cursor = $cursor ?: \Illuminate\Pagination\CursorPaginator::resolveCurrentCursor($cursorName);
-
-        if ($cursor) {
-            dump($cursor->toArray());
-        }
 
         $cursor = CursorStorage::make($cursor);
 
@@ -411,7 +394,7 @@ class Builder
             $this->exclusiveStartKey($cursor->nextCursor());
         }
 
-        $items = $this->limit($perPage)->fetch($mode);
+        $items = $this->limit((int) $perPage)->fetch();
 
         return new CursorPaginator($items, $perPage, $cursor->cursor());
     }
@@ -426,7 +409,7 @@ class Builder
      *
      * @throws InvalidArgumentException
      */
-    public function decrement($column, $amount = 1, array $extra = []): array
+    public function decrement($column, $amount = 1, array $extra = [])
     {
         $this->checkKeyExists();
 
@@ -445,10 +428,15 @@ class Builder
     /**
      * Delete an item
      *
+     * @param $key
      * @return array
      */
-    public function delete(): array
+    public function delete($key = null): array
     {
+        if (! is_null($key)) {
+            $this->key($key);
+        }
+
         $this->checkKeyExists();
 
         $query = $this->grammar->compileDeleteQuery($this);
@@ -462,15 +450,14 @@ class Builder
      * Delete items using batch request
      *
      * @param $keys
-     * @param int $chunkSize
      * @return array
      */
-    public function deleteItemBatch($keys, $chunkSize = 25)
+    public function deleteItemBatch($keys)
     {
         $this->batchRequests = [];
         $response = [];
 
-        foreach (array_chunk($keys, $chunkSize) as $keyChunk) {
+        foreach (array_chunk($keys, $this->batchWriteChunkSize) as $keyChunk) {
             $this->batchRequests[] = Write::make()
                 ->addMany(
                     $this->from,
@@ -505,14 +492,26 @@ class Builder
     /**
      * Fetch data from dynamodb
      *
-     * @param string $mode
      * @return ItemCollection
      */
-    public function fetch(string $mode): ItemCollection
+    public function fetch(): ItemCollection
     {
-        $result = $this->connection->getClient()->{$mode}($this->toArray());
+        $result = $this->connection->getClient()->{$this->fetchMode}($this->toArray());
 
         return $this->processor->processItems($result);
+    }
+
+    /**
+     * Select fetch mode
+     *
+     * @param $mode
+     * @return $this
+     */
+    public function fetchMode($mode)
+    {
+        $this->fetchMode = $mode;
+
+        return $this;
     }
 
     /**
@@ -521,7 +520,7 @@ class Builder
      * @param string $table
      * @return $this
      */
-    public function from(string $table): Builder
+    public function from($table, $as = null): Builder
     {
         $this->from = $table;
 
@@ -574,12 +573,11 @@ class Builder
      * Get one item from database by primary key
      *
      * @param array $columns
-     * @param string $mode
      * @return object|null
      */
-    public function first(array $columns = [], string $mode = FetchMode::QUERY): ?array
+    public function first($columns = [])
     {
-        return $this->limit(1)->{$mode}($columns)->first();
+        return $this->limit(1)->{$this->fetchMode}($columns)->first();
     }
 
     /**
@@ -587,15 +585,11 @@ class Builder
      *
      * @return array
      */
-    public function find(): array
+    public function find($key, $columns = [])
     {
-        $this->checkKeyExists();
+        $this->key((array)$key)->select($columns);
 
-        $query = $this->grammar->compileGetItem($this);
-
-        $result = $this->connection->getClient()->getItem($query);
-
-        return $this->processor->processItem($result);
+        return $this->getItem();
     }
 
     /**
@@ -605,35 +599,25 @@ class Builder
      * @param int $chunkSize
      * @return \Illuminate\Support\Collection
      */
-    public function findMany(array $keys, $chunkSize = 100)
+    public function findMany(array $keys, $columns = [])
     {
-        return $this->getItemBatch($keys, $chunkSize);
+        return $this->select($columns)->getItemBatch($keys);
     }
 
-    /**
-     * Get the database connection instance.
-     *
-     * @return \Illuminate\Database\ConnectionInterface
-     */
-    public function getConnection()
-    {
-        return $this->connection;
-    }
 
     /**
      * Get items collection
      *
      * @param array $columns
-     * @param string $mode
      * @return ItemCollection
      */
-    public function get($columns = [], $mode = FetchMode::QUERY)
+    public function get($columns = [])
     {
         if (! empty($columns)) {
             $this->select($columns);
         }
 
-        return $this->fetch($mode);
+        return $this->fetch();
     }
 
     /**
@@ -644,22 +628,25 @@ class Builder
      */
     public function getItem()
     {
-        return $this->find();
+        $query = $this->grammar->compileGetItem($this);
+
+        $result = $this->connection->getClient()->getItem($query);
+
+        return $this->processor->processItem($result);
     }
 
     /**
      * Get item batch
      *
      * @param $keys
-     * @param int $chunkSize
      * @return \Illuminate\Support\Collection
      */
-    public function getItemBatch($keys, $chunkSize = 100)
+    public function getItemBatch($keys)
     {
         $responses = [];
         $this->batchRequests = [];
 
-        foreach (array_chunk($keys, $chunkSize) as $keyChunk) {
+        foreach (array_chunk($keys, $this->batchReadChunkSize) as $keyChunk) {
             $this->batchRequests[] = Get::make()
                 ->addMany($this->from, $keyChunk);
         }
@@ -682,7 +669,7 @@ class Builder
      * @return array
      *
      */
-    public function increment(string $column, $amount = 1, array $extra = []): array
+    public function increment($column, $amount = 1, array $extra = []): array
     {
         $this->checkKeyExists();
 
@@ -704,26 +691,25 @@ class Builder
     /**
      * Insert item
      *
-     * @param array $item
+     * @param array $values
      * @return array|false
      */
-    public function insert(array $item)
+    public function insert(array $values)
     {
         foreach ($this->key ?? [] as $keyColumn => $keyValue) {
             $this->condition($keyColumn, '<>', $keyValue);
         }
 
-        return $this->putItem($item);
+        return $this->putItem($values);
     }
 
     /**
      * Insert or replace an item
      *
      * @param array $item
-     * @param string $returnValues
      * @return array|false
      */
-    public function insertOrReplace(array $item, string $returnValues = ReturnValues::NONE)
+    public function insertOrReplace(array $item)
     {
         return $this->putItem($item);
     }
@@ -800,32 +786,14 @@ class Builder
     /**
      * Limit query result
      *
-     * @param int $count
+     * @param int $value
      * @return $this
      */
-    public function limit(int $count): Builder
+    public function limit($value)
     {
-        $this->limit = $count;
+        $this->limit = (int) $value;
 
         return $this;
-    }
-
-    /**
-     * Prepare value and operator
-     *
-     * @param $value
-     * @param $operator
-     * @param false $useDefault
-     * @return array
-     */
-    public function prepareValueAndOperator($value, $operator, bool $useDefault = false): array
-    {
-        if ($useDefault) {
-            $value = $operator;
-            $operator = '=';
-        }
-
-        return [$value, $operator];
     }
 
     /**
@@ -857,14 +825,13 @@ class Builder
      * Put item in a batch request
      *
      * @param array $items
-     * @param int $chunk
      * @return array
      */
-    public function putItemBatch(array $items, $chunk = 25)
+    public function putItemBatch(array $items)
     {
         $this->batchRequests = [];
 
-        foreach (array_chunk($items, $chunk) as $itemChunk) {
+        foreach (array_chunk($items, $this->batchWriteChunkSize) as $itemChunk) {
             $this->batchRequests[] = Write::make()
                 ->addMany(
                     $this->from,
@@ -890,10 +857,12 @@ class Builder
      *
      * @return $this
      */
-    public function select(...$attributes): Builder
+    public function select($columns = []): Builder
     {
-        foreach ($attributes as $attribute) {
-            $name = $this->expression->addName($attribute);
+        $columns = is_array($columns) ? $columns : func_get_args();
+
+        foreach ($columns as $column) {
+            $name = $this->expression->addName($column);
             if (! in_array($name, $this->projectionExpression)) {
                 $this->projectionExpression[] = $name;
             }
@@ -1005,12 +974,12 @@ class Builder
     /**
      * Set the raw query
      *
-     * @param RawExpression $query
+     * @param $query
      * @return $this
      */
-    public function raw(RawExpression $query): Builder
+    public function raw($query): Builder
     {
-        $this->raw = $query;
+        $this->raw = new RawExpression($query);
 
         return $this;
     }
@@ -1035,7 +1004,7 @@ class Builder
      */
     public function query(): ItemCollection
     {
-        return $this->fetch(FetchMode::QUERY);
+        return $this->fetch();
     }
 
     /**
@@ -1045,20 +1014,20 @@ class Builder
      */
     public function scan(): ItemCollection
     {
-        return $this->fetch(FetchMode::SCAN);
+        return $this->fetch();
     }
 
     /**
      * Perform update query
      *
-     * @param array $item
+     * @param array $values
      * @return array
      */
-    public function update(array $item): array
+    public function update(array $values): array
     {
         $this->checkKeyExists();
 
-        foreach ($item as $column => $value) {
+        foreach ($values as $column => $value) {
             if (is_null($value)) {
                 $this->updates['remove'][] = $this->expression->addName($column);
                 continue;

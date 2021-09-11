@@ -107,11 +107,23 @@ class CursorPaginator extends AbstractCursorPaginator implements PaginatorContra
     }
 
     /**
+     * Render the paginator using the given view.
+     *
+     * @param  string|null  $view
+     * @param  array  $data
+     * @return \Illuminate\Contracts\Support\Htmlable
+     */
+    public function links($view = null, $data = [])
+    {
+        return $this->render($view, $data);
+    }
+
+    /**
      * Render the paginator using a given view.
      *
      * @param  string|null  $view
      * @param  array  $data
-     * @return \Illuminate\Contracts\View\View
+     * @return \Illuminate\Contracts\Support\Htmlable
      */
     public function render($view = null, $data = [])
     {
@@ -141,7 +153,6 @@ class CursorPaginator extends AbstractCursorPaginator implements PaginatorContra
      *
      * @return array
      */
-    #[ReturnTypeWillChange]
     public function jsonSerialize()
     {
         return $this->toArray();

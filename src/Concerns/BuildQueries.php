@@ -2,8 +2,6 @@
 
 namespace Mehedi\LaravelDynamoDB\Concerns;
 
-use Mehedi\LaravelDynamoDB\Query\FetchMode;
-
 trait BuildQueries
 {
     /**
@@ -11,17 +9,16 @@ trait BuildQueries
      *
      * @param int $count
      * @param callable $callback
-     * @param string $mode
      * @return bool
      */
-    public function chunk(int $count, callable $callback, string $mode = FetchMode::QUERY): bool
+    public function chunk($count, callable $callback): bool
     {
-        $this->limit($count);
+        $this->limit((int) $count);
 
         $page = 1;
 
         do {
-            $results = $this->get([], $mode);
+            $results = $this->get([]);
 
             if (call_user_func_array($callback, [$results, $page]) === false) {
                 return false;

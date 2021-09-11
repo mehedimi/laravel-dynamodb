@@ -32,7 +32,8 @@
         "illuminate/support": "^6|^7|^8",
         "illuminate/pagination": "^6|^7|^8",
         "illuminate/database": "^6|^7|^8",
-        "aws/aws-sdk-php": "^3"
+        "aws/aws-sdk-php": "^3",
+        "ext-json": "*"
     },
     "extra": {
         "laravel": {

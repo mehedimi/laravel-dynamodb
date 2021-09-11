@@ -3,7 +3,6 @@ namespace Mehedi\LaravelDynamoDB\Tests;
 
 use Illuminate\Support\Arr;
 use Mehedi\LaravelDynamoDB\DynamoDBConnection;
-use Mehedi\LaravelDynamoDB\Query\RawExpression;
 use Mehedi\LaravelDynamoDB\Query\ReturnValues;
 use PHPUnit\Framework\TestCase;
 use Mockery as m;
@@ -260,7 +259,7 @@ class BuilderTest extends TestCase
     public function it_can_process_raw_expression()
     {
         $query = $this->getBuilder()
-            ->raw(new RawExpression(['TableName' => 'Users']))
+            ->raw(['TableName' => 'Users'])
             ->toArray();
 
         $expected = [
